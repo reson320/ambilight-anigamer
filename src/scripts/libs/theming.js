@@ -7,6 +7,9 @@ const THEME_LIGHT = -1;
 const THEME_DEFAULT = 0;
 const THEME_DARK = 1;
 
+const MAX_THEME_CORRECTIONS = 5;
+const THEME_CORRECTIONS_WINDOW = 10000;
+
 // 動畫瘋 stores the theme the user picked in localStorage and applies it
 // as the data-theme attribute on the <html> element.
 const SITE_THEME_STORAGE_KEY = 'ANIME_dark_theme';
@@ -35,8 +38,11 @@ export default class Theming {
       SentryReporter.captureException(ex);
     }
 
-    // The theme is changed on the website with the theme toggle
+    // The theme is changed on the website with the theme toggle,
+    // or reset by the website while it initializes.
+    // Limit the corrections per 10 seconds to prevent an endless loop.
     let themeCorrections = 0;
+    let themeCorrectionsStart = 0;
     this.themeObserver = new MutationObserver(
       wrapErrorHandler(
         function themeMutation() {
@@ -48,9 +54,15 @@ export default class Theming {
           }
           if (!this.shouldToggleTheme()) return;
 
+          const now = performance.now();
+          if (now - themeCorrectionsStart > THEME_CORRECTIONS_WINDOW) {
+            themeCorrectionsStart = now;
+            themeCorrections = 0;
+          }
+          if (themeCorrections >= MAX_THEME_CORRECTIONS) return;
+
           themeCorrections++;
           this.updateTheme();
-          if (themeCorrections === 5) this.themeObserver.disconnect();
         }.bind(this),
         true
       )

@@ -53,11 +53,17 @@ html[data-ambientlight-enabled] {
     position: relative; // Fixes the ambient light height
     z-index: 0; // Keeps the ambient light behind the page content
     background: none !important;
+    // Let the ambient light also extend behind the (fixed) page header
+    padding-top: 100px;
+  }
+  .top_sky {
+    margin-bottom: -100px;
   }
 
   // Player
 
   .videoframe,
+  .videoframe .video,
   #video-container,
   .video-js,
   .video-js .vjs-tech,
@@ -168,6 +174,17 @@ html[data-ambientlight-enabled] {
       filter: var(--ytal-filter-shadow) !important;
       text-shadow: var(--ytal-text-shadow) !important;
     }
+  }
+
+  // Optional: hide the danmu list next to the player (the space stays reserved)
+  &[data-ambientlight-hide-danmu-list] .container-player:not(.fullwindow) .subtitle {
+    visibility: hidden;
+  }
+
+  // Optional: hide the page header until it is hovered
+  &[data-ambientlight-hide-header] .top_sky:not(:hover):not(:focus-within) {
+    opacity: 0;
+    transition: opacity .15s ease-out;
   }
 
   // Immersive mode: hide the page header in theater mode

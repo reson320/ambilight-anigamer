@@ -1112,7 +1112,8 @@ export default class Settings {
               'directionLeftEnabled',
               'advancedSettings',
               'hideScrollbar',
-              'immersiveTheaterView',
+              'hideDanmuList',
+              'hideHeader',
               'webGL',
               'prioritizePageLoadSpeed',
               'enableInPictureInPicture',
@@ -1272,7 +1273,12 @@ export default class Settings {
           }
 
           if (
-            ['surroundingContentTextAndBtnOnly', 'fixedPosition'].some(
+            [
+              'surroundingContentTextAndBtnOnly',
+              'fixedPosition',
+              'hideDanmuList',
+              'hideHeader',
+            ].some(
               (name) => name === setting.name
             )
           ) {

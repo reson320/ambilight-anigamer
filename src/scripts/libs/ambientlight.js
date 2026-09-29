@@ -1860,6 +1860,14 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
   updateStyles() {
     this.updateFixedStyle();
 
+    // Page elements that can be hidden to show more of the ambient light
+    const html = document.documentElement;
+    html.toggleAttribute(
+      'data-ambientlight-hide-danmu-list',
+      !!this.settings.hideDanmuList
+    );
+    html.toggleAttribute('data-ambientlight-hide-header', !!this.settings.hideHeader);
+
     // Page background
     let pageBackgroundGreyness = this.settings.pageBackgroundGreyness;
     pageBackgroundGreyness = pageBackgroundGreyness

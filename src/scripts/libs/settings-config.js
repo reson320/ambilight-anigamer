@@ -146,6 +146,13 @@ const SettingsConfig = [
     default: true,
   },
   {
+    name: 'hideHeader',
+    label: '自動隱藏頁首',
+    description: '滑鼠移到頁首時才顯示',
+    type: 'checkbox',
+    default: false,
+  },
+  {
     name: 'headerShadowSize',
     label: '陰影大小',
     type: 'list',
@@ -244,8 +251,9 @@ const SettingsConfig = [
     step: 0.1,
   },
   {
-    name: 'immersiveTheaterView',
-    label: '劇院模式隱藏頁首',
+    name: 'hideDanmuList',
+    label: '隱藏彈幕列表',
+    description: '讓播放器右側也透出環境光',
     type: 'checkbox',
     default: false,
   },
@@ -275,8 +283,9 @@ const SettingsConfig = [
   {
     name: 'videoScale.THEATER',
     label: '大小（劇院模式）',
+    description: '縮小影片讓四周露出環境光',
     type: 'list',
-    default: 100,
+    default: 85,
     min: 25,
     max: 200,
     step: 0.1,
