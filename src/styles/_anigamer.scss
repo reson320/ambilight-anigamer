@@ -53,11 +53,17 @@ html[data-ambientlight-enabled] {
     position: relative; // Fixes the ambient light height
     z-index: 0; // Keeps the ambient light behind the page content
     background: none !important;
-    // Let the ambient light also extend behind the (fixed) page header
-    padding-top: 100px;
   }
-  .top_sky {
-    margin-bottom: -100px;
+
+  // Let the ambient light also extend behind the (fixed) page header.
+  // Not in theater mode, where the player already starts at the top of the window.
+  &:not(:has(.container-player.fullwindow)) {
+    #BH_background {
+      padding-top: 100px;
+    }
+    .top_sky {
+      margin-bottom: -100px;
+    }
   }
 
   // Player
