@@ -2331,6 +2331,27 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     return this.toScrollableRect(getVideoContentClientRect(this.videoElem));
   }
 
+  // The visible video pixels in client coordinates (without letterboxing and
+  // without the removed bars)
+  getVisibleVideoClientRect() {
+    const rect = getVideoContentClientRect(this.videoElem);
+    const [clipX, clipY] = this.shouldStyleVideoParentElem
+      ? this.barsClip ?? [0, 0]
+      : [0, 0];
+    const left = rect.left + rect.width * clipX;
+    const top = rect.top + rect.height * clipY;
+    const width = rect.width * (1 - clipX * 2);
+    const height = rect.height * (1 - clipY * 2);
+    return {
+      left,
+      top,
+      width,
+      height,
+      right: left + width,
+      bottom: top + height,
+    };
+  }
+
   toScrollableRect(elemRect) {
     const scrollableRect = this.getScrollableRect();
 
