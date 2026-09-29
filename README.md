@@ -1,73 +1,68 @@
-[![Google Chrome Web rating](https://img.shields.io/chrome-web-store/rating/paponcgjfojgemddooebbgniglhkajkj?logo=googlechrome&color=brightgreen)](https://chrome.google.com/webstore/detail/youtube-ambilight/paponcgjfojgemddooebbgniglhkajkj) [![Google Chrome users](https://img.shields.io/chrome-web-store/users/paponcgjfojgemddooebbgniglhkajkj?logo=googlechrome&color=blue)](https://chrome.google.com/webstore/detail/youtube-ambilight/paponcgjfojgemddooebbgniglhkajkj) &nbsp; [![Microsoft Edge rating](https://img.shields.io/badge/dynamic/json?label=rating&suffix=/5&query=%24.averageRating&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fcmggdjjjfembmemhleknmfpakmgggjcf&logo=embarcadero&color=brightgreen)](https://microsoftedge.microsoft.com/addons/detail/cmggdjjjfembmemhleknmfpakmgggjcf) [![Microsoft Edge users](https://img.shields.io/badge/dynamic/json?label=users&query=%24.activeInstallCount&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fcmggdjjjfembmemhleknmfpakmgggjcf&logo=embarcadero&color=blue)](https://microsoftedge.microsoft.com/addons/detail/cmggdjjjfembmemhleknmfpakmgggjcf) &nbsp; [![Firefox rating](https://img.shields.io/amo/rating/ambient-light-for-youtube?logo=firefoxbrowser)](https://addons.mozilla.org/en-US/firefox/addon/ambient-light-for-youtube/) [![Firefox users](https://img.shields.io/amo/users/ambient-light-for-youtube?logo=firefoxbrowser&color=blue)](https://addons.mozilla.org/en-US/firefox/addon/ambient-light-for-youtube/) &nbsp; [![Opera rating](https://img.shields.io/badge/rating-4.4/5-brightgreen?logo=opera)](https://addons.opera.com/nl/extensions/details/youtube-ambilight/) [![Opera users](https://img.shields.io/badge/downloads-20k-blue?logo=opera)](https://addons.opera.com/nl/extensions/details/youtube-ambilight/)
+# 動畫瘋環境光（Ambient light for 動畫瘋）
 
-<a href="https://ko-fi.com/G2G59EK8L" rel="noopener">
-  <img align="right" src="https://github.com/WesselKroos/youtube-ambilight/blob/master/src/images/donate.svg?raw=true" title="Support me via a donation">
-</a>
+為[巴哈姆特動畫瘋](https://ani.gamer.com.tw/)的播放器加上向外延伸的環境光（Ambilight），讓畫面顏色自然擴散到播放器周圍，營造沉浸式的觀看體驗。
 
-[![Ambient light for YouTube™](https://github.com/WesselKroos/youtube-ambilight/blob/master/assets/heading.png?raw=true)](https://github.com/WesselKroos/youtube-ambilight#readme)
+本專案移植自 Wessel Kroos 的 [Ambient light for YouTube™](https://github.com/WesselKroos/youtube-ambilight)（MIT 授權）。環境光的繪製引擎（WebGL 投影、黑邊偵測、幀同步等）都來自原專案，這個 fork 只把網站整合層改寫成動畫瘋的 video.js 播放器，並把介面翻譯成繁體中文。
 
-![Preview](https://github.com/WesselKroos/chrome-youtube-ambilight/blob/master/assets/readme/screenshot-1.jpg?raw=true)
+## 功能
 
+- 播放器周圍的環境光，支援一般、劇院與全螢幕模式
+- 開啟時自動切換成深色主題，並讓播放器周圍的區塊半透明，讓光線透出來
+- 播放器控制列上的齒輪按鈕可以調整模糊、擴散範圍、亮度、黑邊移除等設定
+- 快速鍵：`G` 開關環境光、`B` 移除上下黑邊、`V` 移除左右黑邊、`H` 放大影片填滿黑邊
 
-# Ambient light for YouTube™
-Immerse yourself in YouTube videos with ambient light!
+## 安裝（開發版）
 
-## Installation
-Go to the extensions site of your browser and add the extension:
+目前尚未上架商店，請自行建置後以「載入未封裝項目」安裝：
 
-[![Google Chrome Web Store](https://github.com/WesselKroos/youtube-ambilight/blob/master/assets/browsers/Google%20Chrome.png?raw=true)](https://chrome.google.com/webstore/detail/youtube-ambilight/paponcgjfojgemddooebbgniglhkajkj)
+1. 安裝 [Node.js](https://nodejs.org/) 22 以上
+2. 在專案資料夾執行：
+   ```bash
+   npm ci
+   npm run build
+   ```
+3. 開啟 Chrome 或 Edge 的擴充功能頁面（`chrome://extensions` 或 `edge://extensions`）
+4. 開啟「開發人員模式」
+5. 點選「載入未封裝項目」，選擇專案裡的 `dist` 資料夾
+6. 打開動畫瘋任一集播放頁面即可使用
 
-[![Microsoft Edge Store](https://github.com/WesselKroos/chrome-youtube-ambilight/blob/master/assets/browsers/Microsoft%20Edge.png?raw=true)](https://microsoftedge.microsoft.com/addons/detail/cmggdjjjfembmemhleknmfpakmgggjcf)
+## 開發
 
-[![Firefox Add-ons](https://github.com/WesselKroos/chrome-youtube-ambilight/blob/master/assets/browsers/Firefox.png?raw=true)](https://addons.mozilla.org/en-US/firefox/addon/ambient-light-for-youtube/)
+| 指令 | 說明 |
+| ---- | ---- |
+| `npm run build` | 清除並重新建置 `dist/` |
+| `npx eslint src/scripts` | 檢查程式碼 |
 
-[![Opera addons](https://github.com/WesselKroos/youtube-ambilight/blob/master/assets/browsers/Opera.png?raw=true)](https://addons.opera.com/nl/extensions/details/youtube-ambilight/)
+主要檔案：
 
+- `src/scripts/libs/site.js`：動畫瘋的選擇器與播放器相關工具函式，網站改版時通常只需要改這裡
+- `src/scripts/content-main.js`：等待播放器出現後初始化環境光
+- `src/scripts/libs/ambientlight.js`：環境光主程式（來自原專案，已改寫網站相關部分）
+- `src/scripts/injected.js`：在網頁環境中切換主題與版面
+- `src/styles/_anigamer.scss`：動畫瘋頁面融合樣式
 
-## Minimum requirements
+### 同步原專案的更新
 
-### Performance
-A video card with a score of at least 1000 points in the PassMark Video Card Benchmark is recommended.
-Check your video card's score here:
+這個 repo 的 `upstream` remote 指向原專案，可以用下列指令合併原專案的更新：
 
-https://www.videocardbenchmark.net/gpu_list.php
+```bash
+git fetch upstream
+git merge upstream/develop
+```
 
-With a score lower than 1000 the extension will still work but it is likely that the YouTube video page will be slow and/or stuttering.
-> To troubleshoot performance problems or maximize the performance you can follow the checks and steps in the [Troubleshoot guide](https://github.com/WesselKroos/youtube-ambilight/blob/master/TROUBLESHOOT.md)
+合併時主要會在 `ambientlight.js`、`settings.js`、`settings-config.js` 與樣式檔發生衝突，網站相關的改動都集中在上述檔案。
 
+## 隱私
 
-### Browser versions
-| Browser  | Version | Reason |
-| -------- | ------- | ------ |
-| Chromium | 80      | [Optional chaining operator (?.)](https://caniuse.com/mdn-javascript_operators_optional_chaining) |
-| Firefox  | 74      | [Optional chaining operator (?.)](https://caniuse.com/mdn-javascript_operators_optional_chaining) |
+這個擴充功能不會收集或傳送任何資料。原專案的 Sentry 錯誤回報已經移除，錯誤只會顯示在瀏覽器主控台，設定只儲存在瀏覽器的擴充功能儲存空間中。
 
+## 問題回報
 
-## Privacy & Security
-Read the [privacy policy](/PRIVACY-POLICY.md)
+請到 [Issues](https://github.com/reson320/anigamer-ambilight/issues) 回報問題或提出建議。
 
+## 授權與致謝
 
-## Report, request or contribute
-Feel free to 
-- contribute to the project at [/youtube-ambilight](https://github.com/WesselKroos/youtube-ambilight)
-- report bugs at [/youtube-ambilight/issues](https://github.com/WesselKroos/youtube-ambilight/issues)
-- request a feature at [/youtube-ambilight/issues](https://github.com/WesselKroos/youtube-ambilight/issues)
-- or ask a question at [/youtube-ambilight/issues](https://github.com/WesselKroos/youtube-ambilight/issues)
+- 原專案：[WesselKroos/youtube-ambilight](https://github.com/WesselKroos/youtube-ambilight)，Copyright (c) 2017 Wessel Kroos，MIT 授權，完整授權條款見 [LICENSE](LICENSE)
+- 如果喜歡這個效果，也歡迎[贊助原作者](https://ko-fi.com/G2G59EK8L)
 
-
-## Support me
-[![Support me via a donation](https://github.com/WesselKroos/youtube-ambilight/blob/master/src/images/donate.svg?raw=true)](https://ko-fi.com/G2G59EK8L)
-
-
-## Development
-1. Install [Node (LTS)](https://nodejs.org/en/download/)
-2. In the terminal/commandline enter `npm install`.
-3. In the terminal/commandline enter `npm run build`. A `/dist` folder will be generated which contains all the generated files of the extension.
-4. Add the extension to Chrome:
-    1. In Chrome go to the url [chrome://extensions/](chrome://extensions/).
-    2. Turn on the `Developer mode` toggle.
-    3. Click `Load unpacked` and select the `/dist` folder.
-    4. `Ambient light for YouTube™` has been added to the list of extensions.
-5. After you've modified a file in the `/src` folder follow these steps:
-    1. In the terminal/commandline enter `npm run build`
-    2. In Chrome go to the url [chrome://extensions/](chrome://extensions/) and click the refresh/update button in the card of the extension.
+本專案與巴哈姆特、YouTube 及 Google 皆無關聯。
