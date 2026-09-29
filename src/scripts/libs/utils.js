@@ -30,4 +30,4 @@ export const getFeedbackFormLink = () =>
   'https://github.com/reson320/ambilight-anigamer/issues';
 
 export const getPrivacyPolicyLink = () =>
-  'https://github.com/reson320/ambilight-anigamer/blob/develop/PRIVACY-POLICY.md';
+  'https://github.com/reson320/ambilight-anigamer/blob/main/PRIVACY-POLICY.md';
