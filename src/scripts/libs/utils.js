@@ -27,7 +27,7 @@ export const getVersion = () => {
 
 // Feedback and bug reports for this port go to the GitHub issues of the fork
 export const getFeedbackFormLink = () =>
-  'https://github.com/reson320/anigamer-ambilight/issues';
+  'https://github.com/reson320/ambilight-anigamer/issues';
 
 export const getPrivacyPolicyLink = () =>
-  'https://github.com/reson320/anigamer-ambilight/blob/develop/PRIVACY-POLICY.md';
+  'https://github.com/reson320/ambilight-anigamer/blob/develop/PRIVACY-POLICY.md';

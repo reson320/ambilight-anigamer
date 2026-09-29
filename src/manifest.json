@@ -3,7 +3,7 @@
   "name": "動畫瘋環境光 Ambient light for 動畫瘋",
   "description": "為巴哈姆特動畫瘋的播放器加上向外延伸的環境光（Ambilight），營造沉浸式觀看體驗。",
   "version": "0.0.0",
-  "homepage_url": "https://github.com/reson320/anigamer-ambilight",
+  "homepage_url": "https://github.com/reson320/ambilight-anigamer",
   "author": "reson320, Wessel Kroos",
   "icons": {
     "16": "images/icon-16.png",

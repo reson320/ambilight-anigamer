@@ -4,14 +4,14 @@
   "description": "Ambient light (ambilight) for the video player of 巴哈姆特動畫瘋 (ani.gamer.com.tw), ported from Ambient light for YouTube",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/reson320/anigamer-ambilight.git"
+    "url": "git+https://github.com/reson320/ambilight-anigamer.git"
   },
   "author": "Wessel Kroos",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/reson320/anigamer-ambilight/issues"
+    "url": "https://github.com/reson320/ambilight-anigamer/issues"
   },
-  "homepage": "https://github.com/reson320/anigamer-ambilight#readme",
+  "homepage": "https://github.com/reson320/ambilight-anigamer#readme",
   "type": "module",
   "scripts": {
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",

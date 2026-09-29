@@ -58,7 +58,7 @@ git merge upstream/develop
 
 ## 問題回報
 
-請到 [Issues](https://github.com/reson320/anigamer-ambilight/issues) 回報問題或提出建議。
+請到 [Issues](https://github.com/reson320/ambilight-anigamer/issues) 回報問題或提出建議。
 
 ## 授權與致謝
 
