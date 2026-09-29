@@ -12,15 +12,12 @@ import {
   mediaErrorToString,
   requestIdleCallback,
   isWatchPageUrl,
-  watchSelectors,
   isEmbedPageUrl,
-  isNetworkError,
   VIEW_DISABLED,
   VIEW_DETACHED,
   VIEW_SMALL,
   VIEW_THEATER,
   VIEW_FULLSCREEN,
-  VIEW_POPUP,
   setStyleProperty,
   setWarning,
 } from './generic';
@@ -38,15 +35,19 @@ import Settings, {
 import Projector2d from './projector-2d';
 import ProjectorWebGL from './projector-webgl';
 import { WebGLOffscreenCanvas } from './canvas-webgl';
-import {
-  cancelGetAverageVideoFramesDifference,
-  getAverageVideoFramesDifference,
-} from './static-image-detection';
 import Theming from './theming';
 import Stats from './stats';
-import { getBrowser } from './utils';
 import { injectedScript } from './messaging/injected';
-import { getNodeTreeString, getPageElems } from './errors/dom';
+import {
+  ENDED_CLASS,
+  FULLSCREEN_CLASS,
+  HEADER_HEIGHT,
+  PLAYING_CLASS,
+  getVideoContentBox,
+  getVideoContentClientRect,
+  isTheaterView,
+  selectors,
+} from './site';
 
 const baseUrl = chrome.runtime.getURL('') || ''; // document.currentScript?.getAttribute('data-base-url') || ''
 
@@ -72,9 +73,8 @@ export default class Ambientlight {
   isFullscreen = false;
   isFillingFullscreen = false;
   isVideoHiddenOnWatchPage = false;
-  isVrVideo = false;
+  isVrVideo = false; // Not supported on 動畫瘋, kept for upstream compatibility
   isHdr = false;
-  isControlledByAnotherExtension = false;
 
   lastUpdateStatsTime = 0;
   updateStatsInterval = 1000;
@@ -89,14 +89,12 @@ export default class Ambientlight {
   previousDrawTime = 0;
   clearTime = 0;
 
-  constructor(videoElem, ytdAppElem, ytdWatchElem, mastheadElem) {
+  constructor(videoElem, contentElem, playerContainerElem, headerElem) {
     return async function AmbientlightConstructor() {
-      if (ytdAppElem) ytdAppElem.dataset.ytalElem = 'ytd-app';
-      this.ytdAppElem = ytdAppElem; // Not available in embeds
-      if (ytdWatchElem) ytdWatchElem.dataset.ytalElem = 'ytd-watch';
-      this.ytdWatchElem = ytdWatchElem; // Not available in embeds
-      if (mastheadElem) mastheadElem.dataset.ytalElem = 'masthead';
-      this.mastheadElem = mastheadElem; // Not available in embeds
+      this.contentElem = contentElem;
+      this.playerContainerElem = playerContainerElem; // Optional
+      if (headerElem) headerElem.dataset.ytalElem = 'header';
+      this.headerElem = headerElem; // Optional
 
       this.detectChromiumBug1142112Workaround();
       this.detectChromiumBugDirectVideoOverlayWorkaround();
@@ -148,70 +146,28 @@ export default class Ambientlight {
     }.bind(this)();
   }
 
-  get playerSmallContainerElem() {
-    return document.querySelector(
-      watchSelectors
-        .map((selector) => `${selector} #player-container-inner`)
-        .join(', ')
-    );
-  }
-
-  get playerTheaterContainerElem() {
-    return document.querySelector(
-      watchSelectors
-        .map((selector) => `${selector} #full-bleed-container`)
-        .join(', ')
-    );
-  }
-
-  get playerTheaterContainerElemFromVideo() {
-    return this.videoElem?.closest('#full-bleed-container');
-  }
-
-  get ytdWatchElemFromVideo() {
-    return this.videoElem?.closest(watchSelectors.join(', '));
-  }
-
-  get thumbnailOverlayElem() {
-    if (!this._thumbnailOverlayElem)
-      this._thumbnailOverlayElem = document.querySelector(
-        watchSelectors
-          .map((selector) => `${selector} .ytp-cued-thumbnail-overlay`)
-          .join(', ')
-      );
-    return this._thumbnailOverlayElem;
-  }
-
   initElems(videoElem) {
-    this.videoPlayerElem = videoElem.closest('.html5-video-player');
+    this.videoPlayerElem = videoElem.closest(selectors.videoPlayer);
     if (!this.videoPlayerElem) {
       const error = new Error(
-        'Cannot find videoPlayerElem: .html5-video-player'
+        `Cannot find videoPlayerElem: ${selectors.videoPlayer}`
       );
-      error.details = getPageElems();
-      error.details.videoIsInDocument = document.contains(videoElem);
-      error.details.videoIsInBody = document.body.contains(videoElem);
-      error.details.videoTree = getNodeTreeString(videoElem);
-      setWarning(`Failed to load.\n${error.message}`);
+      setWarning(`載入失敗。\n${error.message}`);
       throw error;
     }
     this.videoPlayerElem.dataset.ytalElem = 'video-player';
 
-    // ytdPlayerElem is optional and only used on non-embed pages in small view to set the border radius
-    this.ytdPlayerElem = videoElem.closest('ytd-player');
-
-    // videoContainerElem is optional and only used in the videoOverlayEnabled setting
-    this.videoContainerElem = videoElem.closest('.html5-video-container');
+    // The video.js player element bounds the visible (cropped) video area
+    this.videoContainerElem = this.videoPlayerElem;
 
     this.settingsMenuBtnParent = this.videoPlayerElem.querySelector(
-      '.ytp-right-controls, .ytp-chrome-controls > *:last-child'
+      selectors.controlsRight
     );
     if (!this.settingsMenuBtnParent) {
       const error = new Error(
-        'Cannot find settingsMenuBtnParent: .ytp-right-controls, .ytp-chrome-controls > *:last-child'
+        `Cannot find settingsMenuBtnParent: ${selectors.controlsRight}`
       );
-      error.details = getPageElems();
-      setWarning(`Failed to load.\n${error.message}`);
+      setWarning(`載入失敗。\n${error.message}`);
       throw error;
     }
 
@@ -342,7 +298,7 @@ export default class Ambientlight {
       const update = wrapErrorHandler(
         function chromiumBugVideoJitterWorkaroundUpdate(isPlaying) {
           if (isPlaying === undefined) {
-            isPlaying = this.videoPlayerElem.classList.contains('playing-mode');
+            isPlaying = this.videoPlayerElem.classList.contains(PLAYING_CLASS);
           }
 
           const enable =
@@ -370,9 +326,9 @@ export default class Ambientlight {
             for (const mutation of mutations) {
               const wasPlaying = mutation.oldValue
                 .split(' ')
-                .includes('playing-mode');
+                .includes(PLAYING_CLASS);
               const isPlaying =
-                mutation.target.classList.contains('playing-mode');
+                mutation.target.classList.contains(PLAYING_CLASS);
               if (wasPlaying === isPlaying) continue;
 
               update(isPlaying);
@@ -393,7 +349,7 @@ export default class Ambientlight {
         update,
       };
 
-      update(this.videoPlayerElem.classList.contains('playing-mode'));
+      update(this.videoPlayerElem.classList.contains(PLAYING_CLASS));
     } catch (ex) {
       console.warn(
         'applyChromiumBugVideoJitterWorkaround error. Continuing ambientlight initialization...'
@@ -455,73 +411,6 @@ export default class Ambientlight {
     await this.start();
 
     return true;
-  };
-
-  initAverageVideoFramesDifferenceListeners() {
-    if (!this.ytdWatchElem) return;
-
-    try {
-      on(
-        this.ytdWatchElem,
-        'yt-page-data-will-update',
-        () => {
-          if (this.averageVideoFramesDifference === 1) return;
-
-          this.resetAverageVideoFramesDifference();
-        },
-        undefined,
-        true
-      );
-      on(
-        document,
-        'yt-page-data-updated',
-        () => {
-          if (!this.settings.enabled || !this.isOnVideoPage) return;
-
-          this.calculateAverageVideoFramesDifference();
-        },
-        undefined,
-        true
-      );
-    } catch (ex) {
-      SentryReporter.captureException(ex);
-    }
-  }
-
-  resetAverageVideoFramesDifference = () => {
-    cancelGetAverageVideoFramesDifference();
-    this.averageVideoFramesDifference = 1;
-    this.settings.updateAverageVideoFramesDifferenceInfo();
-
-    if (this.chromiumBugVideoJitterWorkaround?.update)
-      this.chromiumBugVideoJitterWorkaround.update();
-  };
-
-  calculateAverageVideoFramesDifference = async () => {
-    if (!this.settings.energySaver || !this.videoPlayerElem) return;
-
-    try {
-      const format = await injectedScript.postAndReceiveMessage(
-        'player-storyboard-format'
-      );
-      if (!format) return;
-
-      const difference = await getAverageVideoFramesDifference(format);
-      if (difference === undefined) return;
-
-      this.averageVideoFramesDifference = difference;
-      this.settings.updateAverageVideoFramesDifferenceInfo();
-
-      if (this.chromiumBugVideoJitterWorkaround?.update)
-        this.chromiumBugVideoJitterWorkaround.update();
-    } catch (ex) {
-      if (
-        !['InvalidStateError', 'SecurityError'].includes(ex?.name) &&
-        !isNetworkError(ex)
-      ) {
-        SentryReporter.captureException(ex);
-      }
-    }
   };
 
   initVideoListeners() {
@@ -592,7 +481,7 @@ export default class Ambientlight {
       },
       encrypted: () => {
         this.settings.setWarning(
-          'Unable to display an ambient light because YouTube has applied DRM protection to this video',
+          '這部影片受到 DRM 保護，無法顯示環境光',
           true,
           true,
           'encrypted'
@@ -662,16 +551,6 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       on(this.videoElem, name, this.videoListeners[name]);
     }
 
-    if (this.ytdWatchElem) {
-      this.playerListeners = this.playerListeners || {
-        'yt-autonav-pause-player-ended': this.videoListeners.ended,
-      };
-      for (const name in this.playerListeners) {
-        off(this.ytdWatchElem, name, this.playerListeners[name]);
-        on(this.ytdWatchElem, name, this.playerListeners[name]);
-      }
-    }
-
     if (this.videoObserver) {
       this.videoObserver.disconnect();
     }
@@ -699,7 +578,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
             this.chromiumBugVideoJitterWorkaround.update();
         }, true),
         {
-          rootMargin: '-70px 0px 0px 0px', // masthead height (56px) + additional pixel to be safe
+          rootMargin: `-${HEADER_HEIGHT}px 0px 0px 0px`, // Fixed page header height
           threshold: 0.0001, // Because sometimes a pixel in not visible on screen but the intersectionRatio is already 0
         }
       );
@@ -715,39 +594,6 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     this.initVideoListeners();
     if (!this.videoElem.paused) {
       this.videoListeners.playing();
-    }
-  };
-
-  // Removes "yt:crop=16:9" & "yt-stretch=16:9" from the videoData.keywords array
-  // to prevent the video element from being scaled by YouTube in theater view
-  ytScalingBaseKeywords = ['yt:crop=', 'yt:stretch='];
-  updateKeywordsToPreventTheaterScaling = () => {
-    try {
-      let keywords =
-        document.head.querySelector('meta[name="keywords"]')?.content ?? '';
-      if (
-        !this.ytScalingBaseKeywords.some((baseKeyword) =>
-          keywords.includes(baseKeyword)
-        )
-      )
-        return;
-
-      keywords = keywords.split(', ');
-      if (this.settings.enabled) {
-        keywords = keywords.filter(
-          (keyword) =>
-            !this.ytScalingBaseKeywords.some((baseKeyword) =>
-              keyword.startsWith(baseKeyword)
-            )
-        );
-      }
-      keywords = keywords.join(',');
-      injectedScript.postMessage(
-        'video-player-update-video-data-keywords',
-        keywords
-      );
-    } catch (ex) {
-      SentryReporter.captureException(ex);
     }
   };
 
@@ -922,12 +768,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       this.sizesChanged = true;
     });
 
-    // Fix YouTube bug: focus on video element without scrolling to the top
-    on(this.videoElem, 'focus', this.handleVideoFocus, true);
-
     this.theming.initListeners();
-
-    this.initAverageVideoFramesDifferenceListeners();
 
     const videoPlayerObserver = new MutationObserver(
       wrapErrorHandler(
@@ -958,51 +799,30 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       attributes: true,
       attributeFilter: ['class'],
     });
-    if (this.thumbnailOverlayElem) {
-      videoPlayerObserver.observe(this.thumbnailOverlayElem, {
-        attributes: true,
-        attributeFilter: ['style'],
-      });
-    }
 
     // When the video moves between the small and theater views
-    const playerContainersObserver = new MutationObserver(
-      wrapErrorHandler(
-        async function playerContainerMutation() {
-          await this.updateView();
-          await this.optionalFrame();
-        }.bind(this),
-        true
-      )
-    );
-    const playerContainersObserverOptions = {
-      childList: true,
-    };
+    if (this.playerContainerElem) {
+      const playerContainerObserver = new MutationObserver(
+        wrapErrorHandler(
+          async function playerContainerMutation() {
+            if (!(await this.updateView())) return;
 
-    const playerTheaterContainerElem = this.playerTheaterContainerElem;
-    if (playerTheaterContainerElem) {
-      playerContainersObserver.observe(
-        playerTheaterContainerElem,
-        playerContainersObserverOptions
+            await this.optionalFrame();
+          }.bind(this),
+          true
+        )
       );
-    }
-    const playerSmallContainerElem = this.playerSmallContainerElem;
-    if (playerSmallContainerElem) {
-      playerContainersObserver.observe(
-        playerSmallContainerElem,
-        playerContainersObserverOptions
-      );
+      playerContainerObserver.observe(this.playerContainerElem, {
+        attributes: true,
+        attributeFilter: ['class'],
+      });
     }
 
     await this.updateView();
   }
 
   updateIsVideoHiddenOnWatchPage = () => {
-    const classList = this.videoPlayerElem.classList;
-    const hidden =
-      classList.contains('ended-mode') ||
-      (classList.contains('unstarted-mode') &&
-        !(this.thumbnailOverlayElem?.style?.display !== '')); // Auto-play disabled and Thumbnail poster overlays the video
+    const hidden = this.videoPlayerElem.classList.contains(ENDED_CLASS);
     if (this.isVideoHiddenOnWatchPage === hidden) return false;
 
     this.isVideoHiddenOnWatchPage = hidden;
@@ -1124,30 +944,6 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     await this.onKeyPressed(e.key?.toUpperCase());
   };
 
-  handleVideoFocus = () => {
-    if (!this.settings.enabled || !this.isOnVideoPage || !this.ytdAppElem)
-      return;
-
-    const startTop =
-      this.view === VIEW_FULLSCREEN
-        ? this.ytdAppElem.scrollTop
-        : window.scrollY;
-    raf(
-      function handleVideoFocusRaf() {
-        const endTop = VIEW_FULLSCREEN
-          ? this.ytdAppElem.scrollTop
-          : window.scrollY;
-        if (startTop === endTop) return;
-
-        if (this.view === VIEW_FULLSCREEN) {
-          this.ytdAppElem.scrollTop = startTop;
-        } else {
-          window.scrollTo(window.scrollX, startTop);
-        }
-      }.bind(this)
-    );
-  };
-
   onKeyPressed = async (key) => {
     if (key === ' ') return;
 
@@ -1172,7 +968,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     this.settings.displayBezelForSetting('enabled');
   }
 
-  async checkGetImageDataAllowed() {
+  checkGetImageDataAllowed() {
     const isSameOriginVideo =
       !!this.videoElem.src &&
       this.videoElem.src.indexOf(location.origin) !== -1;
@@ -1181,32 +977,11 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       isSameOriginVideo ||
       (!isSameOriginVideo && this.videoElem.crossOrigin);
 
-    // Try to apply the workaround once
-    if (
-      this.videoElem.src &&
-      !getImageDataAllowed &&
-      !this.crossOriginApplied
-    ) {
+    if (this.videoElem.src && !getImageDataAllowed && !this.crossOriginWarned) {
       console.warn(
-        `Detected cross origin video. Applying workaround... ${this.videoElem.src}, ${this.videoElem.crossOrigin}`
+        `Detected a cross origin video. Some features like the bar detection will not work: ${this.videoElem.src}`
       );
-      this.crossOriginApplied = true;
-
-      try {
-        const currentTime = this.videoElem.currentTime;
-        this.videoElem.crossOrigin = 'use-credentials';
-
-        // Refresh auto quality setting range above 480p
-        await injectedScript.postAndReceiveMessage(
-          'video-player-reload-video-by-id'
-        );
-
-        this.videoElem.currentTime = currentTime;
-      } catch {
-        console.warn(
-          `Detected cross origin video. Failed to apply workaround...  ${this.videoElem.src}, ${this.videoElem.crossOrigin}`
-        );
-      }
+      this.crossOriginWarned = true;
     }
 
     if (this.getImageDataAllowed === getImageDataAllowed) return;
@@ -1224,7 +999,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     this.containerElem.style.position = 'absolute';
     this.elem.prepend(this.containerElem);
 
-    if (this.mastheadElem) {
+    if (this.headerElem) {
       this.topElem = document.createElement('div');
       this.topElem.classList.add('ambientlight__top');
       this.elem.prepend(this.topElem);
@@ -1267,10 +1042,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     await this.initProjector();
   }
 
-  getContentElem = () =>
-    this.ytdAppElem
-      ? this.ytdAppElem.querySelector('#content.ytd-app')
-      : this.videoPlayerElem; // In embed view
+  getContentElem = () => this.contentElem;
 
   getFullscreenContentElem() {
     let elem = this.getContentElem();
@@ -1647,83 +1419,16 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
 
     if (
       document.fullscreenElement ||
-      this.videoPlayerElem.classList.contains('ytp-fullscreen')
+      this.videoPlayerElem.classList.contains(FULLSCREEN_CLASS)
     )
       return VIEW_FULLSCREEN;
 
-    if (this.videoPlayerElem.classList.contains('ytp-player-minimized'))
-      return VIEW_POPUP;
-
-    if (
-      this.ytdWatchElemFromVideo
-        ? this.ytdWatchElemFromVideo.getAttribute('theater') != null
-        : this.playerTheaterContainerElemFromVideo
-    ) {
-      return VIEW_THEATER;
-    }
+    if (isTheaterView(this.videoElem)) return VIEW_THEATER;
 
     return VIEW_SMALL;
   };
 
-  initVR = () => {
-    if (getBrowser() === 'Firefox') {
-      this.settings.setWarning(
-        'Ambient light does not support VR videos',
-        false,
-        false
-      );
-    } else {
-      this.vrVideoElem = this.videoPlayerElem.querySelector('.webgl canvas');
-      this.vrVideoElem.dataset.ytalElem = 'vr-video';
-      this.nextVrFrameListener = injectedScript.addMessageListener(
-        'next-vr-frame',
-        this.drawVR
-      );
-      injectedScript.postMessage('init-vr-video');
-    }
-
-    this.settings.updateVisibility();
-  };
-
-  disposeVR = () => {
-    if (this.nextVrFrameListener) {
-      injectedScript.removeMessageListener(this.nextVrFrameListener);
-      this.nextVrFrameListener = undefined;
-    }
-    injectedScript.postMessage('dispose-vr-video');
-
-    this.vrVideoElem = undefined;
-    if (getBrowser() === 'Firefox') {
-      this.settings.setWarning();
-    }
-
-    this.settings.updateVisibility();
-  };
-
-  drawVR = () => {
-    this.nextFrame();
-  };
-
   updateView = async (skipUpdateImmersiveMode = false) => {
-    const isVrVideo = this.videoPlayerElem?.classList?.contains(
-      'ytp-webgl-spherical'
-    );
-    if (isVrVideo != this.isVrVideo) {
-      this.isVrVideo = isVrVideo;
-      this.sizesChanged = true;
-    }
-    if (!isVrVideo && this.vrVideoElem) this.disposeVR();
-
-    const wasControlledByAnotherExtension = this.isControlledByAnotherExtension;
-    this.isControlledByAnotherExtension =
-      document.body.classList.contains('efyt-mini-player') ||
-      this.videoElem?.classList.contains('stefanvdvideotop'); // Enhancer for YouTube
-    if (
-      wasControlledByAnotherExtension !== this.isControlledByAnotherExtension
-    ) {
-      this.sizesChanged = true;
-    }
-
     const view = this.getView();
     if (this.view === view) return false;
 
@@ -1764,7 +1469,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     // if (videoPlayerSizeUpdated) {
     //   console.log('videoPlayerSizeUpdated');
     if (!skipUpdateImmersiveMode) {
-      raf(() => this.updateVideoPlayerSize()); // Always force youtube to recalculate the size because it caches the size per view without invalidation based on ambient light enabled/disabled
+      raf(() => this.updateVideoPlayerSize()); // Let the player recalculate its size after the page layout changed
     }
     // }
 
@@ -1804,12 +1509,8 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
         this.settings.verticalBarsClipPercentage == 0 &&
         this.videoScale == 100);
 
-    const videoParentElem = this.videoElem.parentElement;
-
     const notVisible =
       !this.settings.enabled ||
-      (this.isVrVideo && !this.settings.enableInVRVideos) ||
-      !videoParentElem ||
       !this.videoPlayerElem ||
       !this.isInEnabledView();
     if (notVisible || noClipOrScale) {
@@ -1830,46 +1531,14 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       this.isOnVideoPage &&
       !this.isVideoHiddenOnWatchPage &&
       !this.videoElem.ended &&
-      !noClipOrScale &&
-      !this.isControlledByAnotherExtension;
+      !noClipOrScale;
     if (this.shouldStyleVideoParentElem) {
-      const top = Math.max(0, parseInt(this.videoElem.style.top) || 0);
-      const left = Math.max(0, parseInt(this.videoElem.style.left) || 0);
-      const width = Math.max(0, parseInt(this.videoElem.style.width) || 0);
-      videoParentElem.style.width = `${width}px`;
-      videoParentElem.style.height = this.videoElem.style.height || '100%';
-      videoParentElem.style.marginBottom = `${-this.videoElem.offsetHeight}px`;
-      videoParentElem.style.overflow = 'hidden';
-      videoParentElem.style.transform = `
-        translate(${left}px, ${top}px)
-        scale(${this.videoScale / 100}) 
-        scale(${this.clippedVideoScale[0]}, ${this.clippedVideoScale[1]})
-      `;
-      const videoClipScale = this.clippedVideoScale.map(
-        (scale) => Math.round(1000 * (1 / scale)) / 1000
-      );
-      setStyleProperty(
-        videoParentElem,
-        '--video-transform',
-        `translate(${-left}px, ${-top}px) scale(${videoClipScale[0]}, ${
-          videoClipScale[1]
-        })`
-      );
+      this.applyVideoElemStyle();
     } else {
       this.resetVideoParentElemStyle();
     }
 
-    if (this.isVrVideo !== !!this.vrVideoElem) {
-      if (this.isVrVideo) {
-        this.initVR();
-      } else {
-        this.disposeVR();
-      }
-    }
-
-    this.videoOffset = this.getElemRect(
-      this.isVrVideo ? this.vrVideoElem : this.videoElem
-    );
+    this.videoOffset = this.getVideoRect();
     this.isFillingFullscreen =
       this.isFullscreen &&
       Math.abs(this.videoOffset.width - window.innerWidth) < 10 &&
@@ -1896,15 +1565,8 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
         window.scrollX -
         (unscaledWidth - this.videoOffset.width) / 2
     );
-    const scrollYCorrection =
-      this.ytdWatchElem?.tagName === 'YTD-WATCH-FIXIE' &&
-      this.view === VIEW_SMALL
-        ? window.scrollY
-        : 0;
     const unscaledTop = Math.round(
-      this.videoOffset.top -
-        scrollYCorrection -
-        (unscaledHeight - this.videoOffset.height) / 2
+      this.videoOffset.top - (unscaledHeight - this.videoOffset.height) / 2
     );
 
     this.projectorsElem.style.left = `${unscaledLeft}px`;
@@ -1912,7 +1574,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     this.projectorsElem.style.width = `${unscaledWidth}px`;
     this.projectorsElem.style.height = `${unscaledHeight}px`;
     this.projectorsElem.style.transform = `
-      scale(${this.videoScale / 100}) 
+      scale(${this.videoScale / 100})
       scale(${this.clippedVideoScale[0]}, ${this.clippedVideoScale[1]})
     `;
     if (this.settings.webGL) this.projector.cropped = false;
@@ -1937,9 +1599,6 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       }px)
         scale(${this.videoScale / 100})
       `;
-      this.videoShadowElem.style.borderRadius = this.ytdPlayerElem
-        ? getComputedStyle(this.ytdPlayerElem).borderRadius ?? ''
-        : '';
     } else {
       this.videoShadowElem.style.display = '';
     }
@@ -2094,7 +1753,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
         }
         this.videoContainerElemMissingWarning = true;
         this.settings.setWarning(
-          'Unable to sync the video with the ambient light. The html5-video-container element does not exist on the page. This is likely due to a update of the YouTube design. This will probably soon be fixed in a new version.'
+          '無法讓影片與環境光同步：找不到播放器元素，動畫瘋可能更新了網頁設計。'
         );
       }
     } else if (
@@ -2161,24 +1820,41 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     return true;
   }
 
+  // Scales the video and hides the removed (black) bars.
+  // Upstream styles the parent of the video element, but on 動畫瘋 the parent
+  // is the whole video.js player (including the controls). So the video
+  // element itself is scaled and clipped instead. The video element is
+  // letterboxed with object-fit: contain, so the clip is calculated from the
+  // visible video pixels.
+  getVideoElemStyle() {
+    const box = getVideoContentBox(this.videoElem);
+    const clipX = Math.max(0, box.left + box.width * this.barsClip[0]);
+    const clipY = Math.max(0, box.top + box.height * this.barsClip[1]);
+    return {
+      transform: `scale(${this.videoScale / 100})`,
+      clipPath: `inset(${clipY}px ${clipX}px)`,
+    };
+  }
+
+  applyVideoElemStyle() {
+    const { transform, clipPath } = this.getVideoElemStyle();
+    setStyleProperty(this.videoElem, 'transform', transform);
+    setStyleProperty(this.videoElem, 'clip-path', clipPath);
+  }
+
   resetVideoParentElemStyle() {
     this.shouldStyleVideoParentElem = false;
-    const videoParentElem = this.videoElem.parentElement;
-    if (videoParentElem) {
-      videoParentElem.style.transform = '';
-      videoParentElem.style.overflow = '';
-      videoParentElem.style.height = '';
-      videoParentElem.style.marginBottom = '';
-      setStyleProperty(videoParentElem, '--video-transform', '');
-    }
+    if (!this.videoElem) return;
+
+    setStyleProperty(this.videoElem, 'transform', '');
+    setStyleProperty(this.videoElem, 'clip-path', '');
   }
 
   updateFixedStyle() {
-    const fixedLayout =
-      this.ytdWatchElem?.tagName === 'YTD-WATCH-FIXIE' &&
-      this.view === VIEW_SMALL;
-    const enable = this.settings.fixedPosition || fixedLayout;
-    document.body.toggleAttribute('data-ambientlight-fixed', enable);
+    document.body.toggleAttribute(
+      'data-ambientlight-fixed',
+      !!this.settings.fixedPosition
+    );
   }
 
   updateStyles() {
@@ -2200,17 +1876,17 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     fillOpacity = fillOpacity !== 10 ? (fillOpacity + 100) / 200 : '';
     setStyleProperty(document.body, '--ytal-fill-opacity', fillOpacity);
 
-    if (this.mastheadElem) {
+    if (this.headerElem) {
       // Header transparency
       let headerFillOpacity = this.settings.headerFillOpacity;
       headerFillOpacity =
         headerFillOpacity !== 100 ? (headerFillOpacity + 100) / 200 : '';
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         '--ytal-fill-opacity',
         headerFillOpacity
       );
-      this.mastheadElem.classList.toggle(
+      this.headerElem.classList.toggle(
         'ytal-header-transparent',
         headerFillOpacity !== ''
       );
@@ -2221,12 +1897,12 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     imageOpacity = imageOpacity !== 100 ? imageOpacity / 100 : '';
     setStyleProperty(document.body, '--ytal-image-opacity', imageOpacity);
 
-    if (this.mastheadElem) {
+    if (this.headerElem) {
       // Header transparency
       let headerImageOpacity = this.settings.headerImagesOpacity;
       headerImageOpacity = imageOpacity !== 100 ? headerImageOpacity / 100 : '';
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         '--ytal-image-opacity',
         headerImageOpacity
       );
@@ -2238,7 +1914,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       size && opacity
         ? opacity > 0.5
           ? `
-          drop-shadow(0 0 ${size}px rgba(${color},${opacity})) 
+          drop-shadow(0 0 ${size}px rgba(${color},${opacity}))
           drop-shadow(0 0 ${size}px rgba(${color},${opacity}))
         `
           : `drop-shadow(0 0 ${size}px rgba(${color},${opacity * 2}))`
@@ -2251,11 +1927,11 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       `
         : '';
 
-    if (this.mastheadElem) {
+    if (this.headerElem) {
       // Header shadow
       const headerShadowSize = this.settings.headerShadowSize / 5;
       const headerShadowOpacity = this.settings.headerShadowOpacity / 100;
-      this.mastheadElem.classList.toggle(
+      this.headerElem.classList.toggle(
         'ytal-header-shadow',
         headerShadowSize && headerShadowOpacity
       );
@@ -2267,39 +1943,39 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
 
       // Header !textAndBtnOnly
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         `--ytal-filter-shadow`,
         !textAndBtnOnly ? getHeaderFilterShadow('0,0,0') : ''
       );
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         `--ytal-filter-shadow-inverted`,
         !textAndBtnOnly ? getHeaderFilterShadow('255,255,255') : ''
       );
 
       // Header textAndBtnOnly
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         `--ytal-button-shadow`,
         textAndBtnOnly ? getHeaderFilterShadow('0,0,0') : ''
       );
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         `--ytal-button-shadow-inverted`,
         textAndBtnOnly ? getHeaderFilterShadow('255,255,255') : ''
       );
 
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         '--ytal-text-shadow',
         textAndBtnOnly ? getHeaderTextShadow('0,0,0') : ''
       );
       setStyleProperty(
-        this.mastheadElem,
+        this.headerElem,
         '--ytal-text-shadow-inverted',
         textAndBtnOnly ? getHeaderTextShadow('255,255,255') : ''
       );
-      this.mastheadElem.toggleAttribute(
+      this.headerElem.toggleAttribute(
         'data-ambientlight-text-shadow',
         textAndBtnOnly
       );
@@ -2582,31 +2258,22 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
       (this.settings.horizontalBarsClipPercentage == 0 &&
         this.settings.verticalBarsClipPercentage == 0 &&
         this.videoScale == 100);
-    if (!noClipOrScale) {
-      const videoParentElem = this.videoElem.parentElement;
-      if (videoParentElem) {
-        const videoTransform =
-          videoParentElem.style.getPropertyValue('--video-transform');
-        const left = Math.max(0, parseInt(this.videoElem.style.left) || 0);
-        const top = Math.max(0, parseInt(this.videoElem.style.top) || 0);
-        const scaleX =
-          Math.round(1000 * (1 / this.clippedVideoScale[0])) / 1000;
-        const scaleY =
-          Math.round(1000 * (1 / this.clippedVideoScale[1])) / 1000;
-        if (
-          videoTransform.indexOf(`translate(${-left}px, ${-top}px)`) === -1 ||
-          videoTransform.indexOf(`scale(${scaleX}, ${scaleY})`) === -1
-        ) {
-          return true;
-        }
+    if (!noClipOrScale && this.shouldStyleVideoParentElem && this.barsClip) {
+      const { transform, clipPath } = this.getVideoElemStyle();
+      const probe = document.createElement('div').style;
+      probe.transform = transform;
+      probe.clipPath = clipPath;
+      if (
+        this.videoElem.style.transform !== probe.transform ||
+        this.videoElem.style.clipPath !== probe.clipPath
+      ) {
+        return true;
       }
     }
 
     if (checkPosition) {
       const projectorsElemRect = this.getElemRect(this.projectorsElem);
-      const videoElemRect = this.getElemRect(
-        this.vrVideoElem || this.videoElem
-      );
+      const videoElemRect = this.getVideoRect();
       const topExtraOffset =
         !this.isVrVideo && this.settings.horizontalBarsClipPercentage
           ? videoElemRect.height *
@@ -2637,14 +2304,27 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     return false;
   }
 
-  getElemRect(elem) {
-    const scrollableRect = (
+  getScrollableRect() {
+    return (
       this.clearfixElem.offsetParent ||
       (this.isFullscreen
         ? document.fullscreenElement || document.body
         : document.body)
     ).getBoundingClientRect();
-    const elemRect = elem.getBoundingClientRect();
+  }
+
+  getElemRect(elem) {
+    return this.toScrollableRect(elem.getBoundingClientRect());
+  }
+
+  // The rectangle of the visible video pixels (without the letterboxing of
+  // object-fit: contain)
+  getVideoRect() {
+    return this.toScrollableRect(getVideoContentClientRect(this.videoElem));
+  }
+
+  toScrollableRect(elemRect) {
+    const scrollableRect = this.getScrollableRect();
 
     return {
       top: elemRect.top - scrollableRect.top,
@@ -2915,12 +2595,10 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
   setDrawWarning = (ex) => {
     const message =
       ex.name === 'SecurityError'
-        ? 'A refresh could help, but it is most likely that your browser does not allow the ambient light to read the video pixels of this specific YouTube video. You can probably watch other YouTube videos without this problem.'
-        : `A refresh of the page might help. If not, there could be a specific problem with this YouTube video. Or searching the error message below might help.\n\nError: ${ex.name}\nReason: ${ex.message}`;
+        ? '重新整理網頁可能有幫助，但比較可能是瀏覽器不允許讀取這部影片的畫面。其他影片應該可以正常顯示環境光。'
+        : `重新整理網頁可能有幫助。如果沒有，可能是這部影片本身的問題，也可以搜尋下方的錯誤訊息。\n\n錯誤：${ex.name}\n原因：${ex.message}`;
 
-    this.settings.setWarning(
-      `Failed to display the ambient light\n\n${message}`
-    );
+    this.settings.setWarning(`無法顯示環境光\n\n${message}`);
   };
 
   afterNextFrame = async function afterNextFrame() {
@@ -3126,7 +2804,6 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
         !this.settings.detectVerticalBarSizeEnabled &&
         !this.settings.frameBlending &&
         !this.settings.videoOverlayEnabled) ||
-      this.isControlledByAnotherExtension ||
       this.isVideoHiddenOnWatchPage ||
       // this.isAmbientlightHiddenOnWatchPage || // Disabled because: When in fullscreen isFillingFullscreen goes to false the observer needs a frame to render the shown ambientlight element. So instead handle this in the canScheduleNextFrame check
       this.videoElem.ended ||
@@ -3558,70 +3235,9 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     await this.start(initial);
   }
 
-  // async disableYouTubeAmbientMode() {
-  //   try {
-  //     if(
-  //       !ytcfg?.data_?.WEB_PLAYER_CONTEXT_CONFIGS.WEB_PLAYER_CONTEXT_CONFIG_ID_KEVLAR_WATCH?.cinematicSettingsAvailable ||
-  //       !ytcfg?.data_?.EXPERIMENT_FLAGS?.kevlar_watch_cinematics
-  //     ) return
-
-  //     const ambientModeIcon = 'path[d="M21 7v10H3V7h18m1-1H2v12h20V6zM11.5 2v3h1V2h-1zm1 17h-1v3h1v-3zM3.79 3 6 5.21l.71-.71L4.5 2.29 3.79 3zm2.92 16.5L6 18.79 3.79 21l.71.71 2.21-2.21zM19.5 2.29 17.29 4.5l.71.71L20.21 3l-.71-.71zm0 19.42.71-.71L18 18.79l-.71.71 2.21 2.21z"]'
-  //     let ambientModeCheckbox = document.querySelector(`.ytp-menuitem ${ambientModeIcon}`)?.closest('.ytp-menuitem')
-
-  //     if(ambientModeCheckbox) {
-  //       const enabled = ambientModeCheckbox.getAttribute('aria-checked') === 'true'
-  //       if(enabled) {
-  //         ambientModeCheckbox.click()
-  //       }
-  //       return
-  //     }
-
-  //     const settingsBtn = document.querySelector('.ytp-settings-button')
-  //     const settingsPopupId = settingsBtn?.getAttribute('aria-controls')
-  //     const settingsPopup = document.querySelector(`.ytp-popup[id="${settingsPopupId}"]`)
-  //     settingsPopup.classList.add('disable-youtube-ambient-mode-workaround')
-  //     await new Promise(resolve => raf(resolve)) // Await rendering
-  //     const wasActiveElement = document.activeElement
-  //     settingsBtn?.click() // Open settings
-
-  //     try {
-  //       await new Promise(resolve => raf(resolve)) // Await rendering
-  //       await waitForDomElement(() => document.querySelector(`.ytp-menuitem ${ambientModeIcon}`), document.querySelector('.html5-video-player'), 1000)
-  //       ambientModeCheckbox = document.querySelector(`.ytp-menuitem ${ambientModeIcon}`)?.closest('.ytp-menuitem')
-  //       if(ambientModeCheckbox) {
-  //         const enabled = ambientModeCheckbox.getAttribute('aria-checked') === 'true'
-  //         if(enabled) {
-  //           ambientModeCheckbox.click()
-  //         }
-  //       }
-  //     } catch(ex) {
-  //       console.log(`Skipped disabling YouTube\'s own Ambient Mode: ${ex?.message}`)
-  //     }
-
-  //     settingsBtn?.click() // Close settings
-  //     await new Promise(resolve => raf(resolve)) // Await rendering
-
-  //     if(document.activeElement == settingsBtn && wasActiveElement !== settingsBtn) {
-  //       if(wasActiveElement) {
-  //         wasActiveElement.focus()
-  //       } else {
-  //         settingsBtn.blur()
-  //       }
-  //     }
-
-  //     await new Promise(resolve => setTimeout(resolve, 500)) // Await close animation
-  //     await new Promise(resolve => raf(resolve)) // Await rendering
-  //     settingsPopup.classList.remove('disable-youtube-ambient-mode-workaround')
-  //   } catch(ex) {
-  //     console.log(`Failed to automatically disable YouTube\'s own Ambient Mode: ${ex?.message}`)
-  //   }
-  // }
-
   async disable() {
     if (this.pendingStart) return;
     this.settings.set('enabled', false, true);
-
-    this.updateKeywordsToPreventTheaterScaling();
 
     await this.hide();
   }
@@ -3640,7 +3256,6 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
 
     this.checkGetImageDataAllowed();
     await this.resetSettingsIfNeeded();
-    this.updateKeywordsToPreventTheaterScaling();
     await this.updateView(true);
 
     this.pendingStart = true;
@@ -3656,12 +3271,9 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     // Continue only if still enabled after await
     if (!this.settings.enabled || !this.isOnVideoPage) return;
 
-    this.calculateAverageVideoFramesDifference();
-
     // Prevent incorrect stats from showing
     this.lastUpdateStatsTime = performance.now() + this.updateStatsInterval;
     await this.nextFrame();
-    // this.disableYouTubeAmbientMode()
   };
 
   updateHdr = wrapErrorHandler(
@@ -3770,13 +3382,9 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     const toDark = this.theming.shouldBeDarkTheme(false);
     await injectedScript.postAndReceiveMessage('hide', {
       toDark,
-      // Todo: Set to the correct pageBackgroundGreyness setting value
-      ytdAppElemBackground: toDark ? '#000' : '#fff',
     });
 
-    await this.theming.updateTheme(); // Update livechat theme
-
-    if (this.isVrVideo) this.disposeVR();
+    await this.theming.updateTheme();
 
     if (this.videoOverlay?.elem?.isConnected) {
       this.videoOverlay.elem.remove();
@@ -3789,112 +3397,25 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     this.clear();
     this.stats.hide();
 
-    this.updateLayoutPerformanceImprovements();
     await this.updateSizes();
   }
-
-  updateLayoutPerformanceImprovements = wrapErrorHandler(() => {
-    const html = document.documentElement;
-    const liveChatHtml =
-      this.theming.liveChatIframe?.contentDocument?.documentElement;
-    const enabled =
-      this.settings.enabled &&
-      !this.isHidden &&
-      this.settings.layoutPerformanceImprovements;
-    if (enabled) {
-      html.setAttribute(
-        'data-ambientlight-layout-performance-improvements',
-        true
-      );
-      if (liveChatHtml)
-        liveChatHtml.setAttribute(
-          'data-ambientlight-layout-performance-improvements',
-          true
-        );
-    } else {
-      html.removeAttribute('data-ambientlight-layout-performance-improvements');
-      if (liveChatHtml)
-        liveChatHtml.removeAttribute(
-          'data-ambientlight-layout-performance-improvements'
-        );
-    }
-  }, true);
 
   async show() {
     if (!this.isHidden) return;
     this.isHidden = false;
-    // await new Promise((resolve) => raf(resolve));
-
-    // // Pre-style to prevent black/white flashes
-    // if (this.ytdAppElem)
-    //   setStyleProperty(this.ytdAppElem, 'background',
-    //     this.theming.shouldBeDarkTheme(true) ? '#000' : '#fff',
-    //     'important');
-    // if (this.playerTheaterContainerElem) {
-    //   setStyleProperty(this.playerTheaterContainerElem, 'background',
-    //     'none',
-    //     'important');
-    // }
-
-    // const html = document.documentElement;
-    // if (this.settings.hideScrollbar)
-    //   html.setAttribute('data-ambientlight-hide-scrollbar', true);
-    // if (this.settings.relatedScrollbar)
-    //   html.setAttribute('data-ambientlight-related-scrollbar', true);
 
     const toDark = this.theming.shouldBeDarkTheme(true);
     await injectedScript.postAndReceiveMessage('show', {
-      // Todo: Set to the correct pageBackgroundGreyness setting value
       toDark,
-      ytdAppElemBackground: toDark ? '#000' : '#fff',
       hideScrollbar: this.settings.hideScrollbar,
-      relatedScrollbar: this.settings.relatedScrollbar,
       immersiveMode: this.shouldEnableImmersiveMode(),
     });
 
-    // this.handleDocumentVisibilityChange(); // In case the visibility had changed while being disabled
-    // await this.updateVideoPlayerSize(true);
-    // await this.updateSizes();
-
     wrapErrorHandler(
       async function afterShow() {
-        // await new Promise((resolve) => raf(resolve));
-        // // // eslint-disable-next-line no-unused-vars
-        // // const _1 = this.videoElem.clientWidth;
-
-        // const html = document.documentElement;
-        // html.setAttribute('data-ambientlight-enabled', true);
-
-        if (this.settings.layoutPerformanceImprovements)
-          this.updateLayoutPerformanceImprovements();
-
-        // Todo: Prevent switching to the incorrect theme
         const updateDocument = this.handleDocumentVisibilityChange(); // In case the visibility had changed while being disabled
-        // const updateVideoPlayer = this.updateVideoPlayerSize(true); // In case the theater player height changed
-        await this.theming.updateTheme(); // Update livechat theme
-
+        await this.theming.updateTheme();
         await updateDocument;
-        // await updateVideoPlayer;
-
-        // Reset
-        // if (this.playerTheaterContainerElem)
-        //   this.playerTheaterContainerElem.style.background = '';
-        // if (this.ytdAppElem) this.ytdAppElem.style.background = '';
-
-        // // eslint-disable-next-line no-unused-vars
-        // const _2 = this.videoElem.clientWidth;
-        // await new Promise((resolve) => raf(resolve));
-
-        // Recalculate the player menu width to remove the elements on the second row
-        try {
-          await new Promise((resolve) => raf(resolve));
-          const menu = document.querySelector(
-            'ytd-menu-renderer[has-flexible-items]'
-          );
-          if (menu?.onStamperFinished) {
-            menu.onStamperFinished();
-          }
-        } catch {}
 
         if (this.chromiumBugVideoJitterWorkaround?.update)
           this.chromiumBugVideoJitterWorkaround.update();
@@ -3903,8 +3424,8 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
   }
 
   updateAtTop = async () => {
-    if (this.mastheadElem)
-      this.mastheadElem.classList.toggle('at-top', this.atTop);
+    if (this.headerElem)
+      this.headerElem.classList.toggle('at-top', this.atTop);
 
     if (this.settings.webGL) await this.projector.handleAtTopChange(this.atTop);
   };

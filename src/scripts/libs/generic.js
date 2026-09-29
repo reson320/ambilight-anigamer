@@ -391,11 +391,10 @@ export const supportsColorMix = () => {
   return _supportsColorMix;
 };
 
-export const isWatchPageUrl = () =>
-  ['/watch', '/live/'].some((path) => location.pathname.startsWith(path)) ||
-  isEmbedPageUrl();
+export { isWatchPageUrl } from './site';
 
-export const isEmbedPageUrl = () => location.pathname?.startsWith('/embed/');
+// 動畫瘋 has no embeddable player
+export const isEmbedPageUrl = () => false;
 
 export const getCookie = async (name) =>
   globalThis.cookieStore
@@ -461,12 +460,6 @@ export const VIEW_THEATER = 'THEATER';
 export const VIEW_FULLSCREEN = 'FULLSCREEN';
 export const VIEW_POPUP = 'POPUP';
 
-export const watchSelectors = [
-  'ytd-watch-flexy',
-  'ytd-watch-fixie',
-  'ytd-watch-grid',
-];
-
 let warningElem;
 let warningElemText;
 export const setWarning = (text) => {
@@ -513,7 +506,7 @@ export const setWarning = (text) => {
     titleElem.style.color = '#008cff';
     titleElem.style.fontSize = '22px';
     titleElem.style.lineHeight = '28px';
-    titleElem.textContent = 'Ambient light for YouTube™\n';
+    titleElem.textContent = '動畫瘋環境光\n';
     elem.appendChild(titleElem);
 
     const textElem = document.createElement('div');
