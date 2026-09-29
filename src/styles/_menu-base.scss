@@ -1,0 +1,158 @@
+// Base styles for the settings menu, button, tooltip and bezel.
+// Upstream reuses the styles of the YouTube player (.ytp-*), which do not
+// exist on 動畫瘋. These rules recreate the parts that the menu depends on.
+
+$menu-font: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', Roboto, Arial, sans-serif;
+
+.ytpa-ambientlight-settings-menu.ytp-popup {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 12px;
+  background: rgba(28, 28, 28, 0.9);
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  color: #eee;
+  font-family: $menu-font;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
+  user-select: none;
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  .ytp-panel-menu {
+    width: 100%;
+    padding: 8px 0;
+    margin: 0;
+  }
+
+  .ytp-menuitem {
+    position: relative;
+    align-items: center;
+    min-height: 32px;
+    outline: none;
+    color: #eee;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+  }
+
+  .ytp-menuitem-content {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 15px 0 0;
+    text-align: right;
+  }
+
+  a {
+    text-decoration: none;
+  }
+
+  // Toggle switch
+  .ytp-menuitem-toggle-checkbox {
+    position: relative;
+    width: 36px;
+    height: 14px;
+    border-radius: 14px;
+    background-color: rgba(255, 255, 255, 0.3);
+    transition: background-color 0.08s cubic-bezier(0.4, 0, 1, 1);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: -3px;
+      left: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: #bdbdbd;
+      box-shadow: 0 1px 5px 0 rgba(0, 0, 0, 0.6);
+      transition: transform 0.08s cubic-bezier(0.4, 0, 1, 1), background-color 0.08s;
+    }
+  }
+  .ytp-menuitem[aria-checked='true'] .ytp-menuitem-toggle-checkbox::after {
+    background-color: #fff;
+    transform: translateX(16px);
+  }
+}
+
+// Settings button in the video.js control bar
+.video-js .ytp-ambientlight-settings-button.vjs-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4em;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+
+  svg {
+    width: 24px;
+    height: 24px;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+  }
+}
+
+// Tooltip above the settings button
+.ytp-ambientlight-settings-button-tooltip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  padding: 5px 9px;
+  border-radius: 4px;
+  background: rgba(28, 28, 28, 0.9);
+  color: #fff;
+  font-family: $menu-font;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+
+  .ytp-tooltip-text-wrapper,
+  .ytp-tooltip-bottom-text {
+    display: block;
+  }
+}
+
+// Hotkey feedback in the center of the player
+.ytal-bezel.ytp-bezel {
+  position: absolute;
+  z-index: 19;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-radius: 26px;
+  background: rgba(0, 0, 0, 0.5);
+  animation: ytal-bezel-fadeout 0.5s linear 1 normal forwards;
+
+  .ytp-bezel-icon {
+    width: 36px;
+    height: 36px;
+    margin: 8px;
+  }
+
+  .ytp-svg-fill {
+    fill: #fff;
+    font-family: $menu-font;
+  }
+
+  @keyframes ytal-bezel-fadeout {
+    0% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: scale(2);
+    }
+  }
+}

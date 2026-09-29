@@ -1,0 +1,144 @@
+// Ported from Ambient light for YouTube by Wessel Kroos (MIT)
+
+.ambientlight__chromium-bug-video-jitter-workaround {
+  display: none;
+}
+
+/* Workaround for issue with OffScreenCanvas */
+.ambientlight__buffers {
+  position: absolute;
+  opacity: 0.00001;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Workaround for flickering canvasses */
+.ambientlight__buffers-wrapper {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  opacity: 0.00001;
+  pointer-events: none;
+  display: flex;
+  canvas {
+    width: 1px;
+    height: 1px;
+  }
+}
+
+/* FPS */
+
+.ambientlight__fps-list {
+  position: absolute;
+  z-index: 11;
+  top: 5px;
+  left: 5px;
+  width: calc(100% - 10px);
+  height: inherit;
+  color: #fff;
+  font-size: 18px;
+  pointer-events: none;
+  user-select: none;
+  overflow: hidden;
+  contain: strict;
+
+  html[data-ambientlight-enabled] & {
+    display: block;
+  }
+}
+.ambientlight__video-resolution,
+.ambientlight__ambientlight-bar-detection-fps {
+  margin-top: 10px;
+}
+.ambientlight__fps-list > :not(.ambientlight__ambientlight-ft),
+.ambientlight__ambientlight-ft-legend,
+.ambientlight__ambientlight-ft-axis-legend {
+  filter: drop-shadow(1px 0 0 rgba(0,0,0,.75)) drop-shadow(-1px 0 0 rgba(0,0,0,.75)) drop-shadow(0 1px 0 rgba(0,0,0,.75)) drop-shadow(0 -1px 0 rgba(0,0,0,.75));
+}
+.ambientlight__ambientlight-ft {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 152px;
+  max-height: min(900px, calc(100% - 65px));
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, .85);
+  overflow: hidden;
+  resize: vertical;
+}
+.ambientlight__ambientlight-ft canvas {
+  height: 100%;
+  border: 1px solid #000;
+  transform: scaleY(-1);
+  cursor: help;
+
+  @at-root .ambientlight__ambientlight-ft:not([style*="height: 1"]):not([style*="height: 2"]):not([style*="height: 3"]) canvas {
+    image-rendering: pixelated;
+  }
+}
+.ambientlight__ambientlight-ft-legend {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  font-family: monospace;
+  font-size: 13.5px;
+  line-height: 17px;
+  white-space: pre-wrap;
+  letter-spacing: 0px;
+}
+.ambientlight__ambientlight-ft:not([legend]) .ambientlight__ambientlight-ft-legend {
+  display: none;
+}
+.ambientlight__ambientlight-ft-axis-legends {
+  z-index: 2;
+  position: relative;
+  pointer-events: none;
+}
+.ambientlight__ambientlight-ft-axis-legend {
+  position: absolute;
+  left: 5px;
+  font-size: 13.5px;
+  line-height: 13.5px;
+  
+  &--top {
+    top: 4px;
+  }
+
+  &--bottom {
+    bottom: 3px;
+  }
+}
+.ambientlight__ambientlight-bar-detection-horizontal-result,
+.ambientlight__ambientlight-bar-detection-vertical-result {
+  white-space: pre;
+}
+.ambientlight__ambientlight-bar-detection-graph {
+  pointer-events: auto;
+  background: rgba(0, 0, 0, .85);
+  width: auto;
+  height: 258px;
+  border: 1px solid #000;
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  resize: vertical;
+  container-name: bar-detection-graph;
+  container-type: size;
+
+  canvas {
+    display: block;
+    height: 100%;
+
+    cursor: help;
+
+    @container bar-detection-graph (min-width: 514px) {
+      image-rendering: pixelated;
+    }
+  }
+}
+
+
+/* Override incorrect default description colors when switching between themes */

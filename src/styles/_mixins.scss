@@ -1,0 +1,56 @@
+@mixin input-range-track {
+  &::-webkit-slider-runnable-track {@content}
+  &::-moz-range-track {@content}
+}
+
+@mixin input-range-thumb {
+  &::-webkit-slider-thumb {@content}
+  &::-moz-range-thumb {@content}
+}
+
+@mixin scrollbar-dark-thin($is-page-scroller: false) {
+  scrollbar-color: rgba(255, 255, 255, .2) transparent !important;
+  @if($is-page-scroller == false) {
+    scrollbar-width: thin;
+  }
+
+  &::-webkit-scrollbar {
+    @if($is-page-scroller) {
+      background: var(--ytal-page-background, #000);
+    } @else {
+      background: transparent;
+    }
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border: 4px solid transparent;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, .2);
+    background-clip: content-box;
+  }
+}
+@mixin scrollbar-light-thin($is-page-scroller: false) {
+  scrollbar-color: rgba(0, 0, 0, .2) transparent !important;
+  @if($is-page-scroller == false) {
+    scrollbar-width: thin;
+  }
+
+  &::-webkit-scrollbar {
+    @if($is-page-scroller) {
+      background: var(--ytal-page-background, #fff);
+    } @else {
+      background: transparent;
+    }
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border: 4px solid transparent;
+    border-radius: 9px;
+    background: rgba(0, 0, 0, .2);
+    background-clip: content-box;
+  }
+}

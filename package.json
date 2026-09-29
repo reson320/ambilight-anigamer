@@ -14,6 +14,7 @@
   "homepage": "https://github.com/reson320/anigamer-ambilight#readme",
   "type": "module",
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build:manifest": "node manifest-copy.js",
     "build:html": "copyfiles -u 1 src/options.html dist",
     "build:images": "copyfiles -u 2 src/images/* dist/images",
@@ -21,7 +22,7 @@
     "build:styles:options": "copyfiles -u 2 src/styles/options.css dist/styles",
     "build:styles": "run-p build:styles:content build:styles:options",
     "build:scripts": "rollup -c",
-    "build": "run-s build:scripts build:styles build:manifest build:html build:images"
+    "build": "run-s clean build:scripts build:styles build:manifest build:html build:images"
   },
   "engines": {
     "node": "22.5.1"
