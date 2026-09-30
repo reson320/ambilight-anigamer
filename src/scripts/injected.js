@@ -59,6 +59,8 @@ const updateImmersiveMode = function updateImmersiveMode(
   enable,
   skipVideoPlayerSetSize = false
 ) {
+  // toggleAttribute toggles when the force argument is undefined
+  enable = !!enable;
   const html = document.documentElement;
   const enabled = html.getAttribute('data-ambientlight-immersive') != null;
   if (enabled === enable) return;
