@@ -56,8 +56,8 @@ html[data-ambientlight-enabled] {
   }
 
   // Let the ambient light also extend behind the (fixed) page header.
-  // Not in theater mode, where the player already starts at the top of the window.
-  &:not(:has(.container-player.fullwindow)) {
+  // Not in theater mode or fullscreen, where the player fills the window.
+  &:not(:has(.container-player.fullwindow)):not(:fullscreen) {
     #BH_background {
       padding-top: 100px;
     }
