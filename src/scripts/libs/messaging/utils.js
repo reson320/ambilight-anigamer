@@ -1,5 +1,5 @@
-export const origin = 'https://www.youtube.com';
-export const extensionId = 'youtube-ambient-light-extension';
+export const origin = 'https://ani.gamer.com.tw';
+export const extensionId = 'anigamer-ambient-light-extension';
 
 export const isSameWindowMessage = (event) =>
   event.source === window && event.origin === origin;

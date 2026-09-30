@@ -1,11 +1,4 @@
-import {
-  getCookie,
-  isEmbedPageUrl,
-  isWatchPageUrl,
-  on,
-  requestIdleCallback,
-  wrapErrorHandler,
-} from './generic';
+import { isWatchPageUrl, wrapErrorHandler } from './generic';
 import { injectedScript } from './messaging/injected';
 import SentryReporter from './errors/sentry-reporter';
 import { storage } from './storage';
@@ -14,6 +7,13 @@ const THEME_LIGHT = -1;
 const THEME_DEFAULT = 0;
 const THEME_DARK = 1;
 
+const MAX_THEME_CORRECTIONS = 5;
+const THEME_CORRECTIONS_WINDOW = 10000;
+
+// 動畫瘋 stores the theme the user picked in localStorage and applies it
+// as the data-theme attribute on the <html> element.
+const SITE_THEME_STORAGE_KEY = 'ANIME_dark_theme';
+
 export default class Theming {
   constructor(ambientlight) {
     this.ambientlight = ambientlight;
@@ -21,60 +21,16 @@ export default class Theming {
   }
 
   initListeners() {
-    // Appearance (theme) changes initiated by the YouTube menu
-    this.youtubeTheme = this.isDarkTheme() ? 1 : -1;
-    on(
-      document,
-      'yt-action',
-      async (e) => {
-        if (!this.settings.enabled) return;
-        const name = e?.detail?.actionName;
-        if (name === 'yt-signal-action-toggle-dark-theme-off') {
-          this.youtubeTheme = await this.prefCookieToTheme();
-          this.updateTheme();
-        } else if (name === 'yt-signal-action-toggle-dark-theme-on') {
-          this.youtubeTheme = await this.prefCookieToTheme();
-          this.updateTheme();
-        } else if (name === 'yt-signal-action-toggle-dark-theme-device') {
-          this.youtubeTheme = await this.prefCookieToTheme();
-          this.updateTheme();
-        } else if (name === 'yt-forward-redux-action-to-live-chat-iframe') {
-          // Let YouTube change the theme to an incorrect color in this process
-          requestIdleCallback(
-            function forwardReduxActionToLiveChatIframe() {
-              // Fix the theme to the correct color after the process
-              if (!this.ambientlight.isOnVideoPage) return;
-              if (e.detail.args?.[0]?.type === 'SET_WATCH_SCROLL_TOP') return;
-
-              this.updateLiveChatTheme();
-            }.bind(this),
-            { timeout: 1 }
-          );
-        }
-      },
-      undefined,
-      true
-    );
+    this.siteTheme = this.getSiteTheme();
 
     try {
-      // Firefox does not support the cookieStore
-      if (globalThis.cookieStore?.addEventListener) {
-        cookieStore.addEventListener(
-          'change',
-          wrapErrorHandler(async (e) => {
-            for (const change of e.changed) {
-              if (change.name !== 'PREF') continue;
+      // The theme is changed on the website in another tab
+      window.addEventListener(
+        'storage',
+        wrapErrorHandler((e) => {
+          if (e.key !== SITE_THEME_STORAGE_KEY) return;
 
-              this.youtubeTheme = await this.prefCookieToTheme(change.value);
-              this.updateTheme();
-            }
-          }, true)
-        );
-      }
-      matchMedia('(prefers-color-scheme: dark)').addEventListener(
-        'change',
-        wrapErrorHandler(async () => {
-          this.youtubeTheme = await this.prefCookieToTheme();
+          this.siteTheme = this.getSiteTheme();
           this.updateTheme();
         }, true)
       );
@@ -82,57 +38,69 @@ export default class Theming {
       SentryReporter.captureException(ex);
     }
 
+    // The theme is changed on the website with the theme toggle,
+    // or reset by the website while it initializes.
+    // Limit the corrections per 10 seconds to prevent an endless loop.
     let themeCorrections = 0;
+    let themeCorrectionsStart = 0;
     this.themeObserver = new MutationObserver(
       wrapErrorHandler(
         function themeMutation() {
+          if (!this.updatingTheme) {
+            const siteTheme = this.getSiteTheme();
+            if (siteTheme !== this.siteTheme) {
+              this.siteTheme = siteTheme;
+            }
+          }
           if (!this.shouldToggleTheme()) return;
+
+          const now = performance.now();
+          if (now - themeCorrectionsStart > THEME_CORRECTIONS_WINDOW) {
+            themeCorrectionsStart = now;
+            themeCorrections = 0;
+          }
+          if (themeCorrections >= MAX_THEME_CORRECTIONS) return;
 
           themeCorrections++;
           this.updateTheme();
-          if (themeCorrections === 5) this.themeObserver.disconnect();
         }.bind(this),
         true
       )
     );
     this.themeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeOldValue: true,
-      attributeFilter: ['dark'],
+      attributeFilter: ['data-theme'],
     });
-
-    if (isEmbedPageUrl()) return;
-
-    this.initLiveChat(); // Depends on this.youtubeTheme set in initListeners
   }
 
-  prefCookieToTheme = async (cookieValue) => {
-    if (!cookieValue) {
-      cookieValue = (await getCookie('PREF'))?.value || '';
+  getSiteTheme = () => {
+    try {
+      const stored = localStorage.getItem(SITE_THEME_STORAGE_KEY);
+      if (stored === '1') return THEME_DARK;
+      if (stored === '0') return THEME_LIGHT;
+    } catch {
+      // localStorage can be blocked
     }
 
-    let f6 = new URLSearchParams(cookieValue)?.get('f6') || null;
-    if (f6 != null && /^[A-Fa-f0-9]+$/.test(f6)) {
-      f6 = parseInt(f6, 16);
+    // Before the ambient light changes the theme, the attribute reflects the
+    // theme of the website
+    if (this.initialSiteTheme === undefined) {
+      this.initialSiteTheme = this.isDarkTheme() ? THEME_DARK : THEME_LIGHT;
     }
-    f6 = f6 || 0;
-
-    if (f6 & (1 << 165 % 31)) return THEME_DARK;
-    if (f6 & (1 << 174 % 31)) return THEME_LIGHT;
-    if (matchMedia('(prefers-color-scheme: dark)').matches) return THEME_DARK;
-    return THEME_LIGHT;
+    return this.initialSiteTheme;
   };
 
-  isDarkTheme = () => document.documentElement.getAttribute('dark') != null;
+  isDarkTheme = () =>
+    document.documentElement.getAttribute('data-theme') === 'dark';
 
   shouldBeDarkTheme = (enabledAndVisible) => {
-    const enabled =
+    const disabled =
       enabledAndVisible === undefined
         ? !this.settings.enabled || this.ambientlight.isHidden
         : !enabledAndVisible;
     const toTheme =
-      enabled || this.settings.theme === THEME_DEFAULT
-        ? this.youtubeTheme
+      disabled || this.settings.theme === THEME_DEFAULT
+        ? this.siteTheme ?? this.getSiteTheme()
         : this.settings.theme;
     return toTheme === THEME_DARK;
   };
@@ -154,33 +122,17 @@ export default class Theming {
       this.updatingTheme = true;
 
       if (this.themeToggleFailed !== false) {
-        const lastFailedThemeToggle = await new Promise(
-          // eslint-disable-next-line no-async-promise-executor
-          async (resolve, reject) => {
-            try {
-              let timeout = setTimeout(() => {
-                timeout = undefined;
-                resolve();
-              }, 5000);
-              const result = await storage.get('last-failed-theme-toggle');
-              if (!timeout) return;
-
-              clearTimeout(timeout);
-              resolve(result);
-            } catch (ex) {
-              reject(ex);
-            }
-          }
+        const lastFailedThemeToggle = await storage.get(
+          'last-failed-theme-toggle'
         );
-
         if (lastFailedThemeToggle) {
           const now = new Date().getTime();
           const withinThresshold = now - 10000 < lastFailedThemeToggle;
           if (withinThresshold) {
             this.settings.setWarning(
-              `Because the previous theme toggle attempt failed to prevent repeated page refreshes, the automatic toggle to the ${
-                this.isDarkTheme() ? 'light' : 'dark'
-              } appearance has been disabled for 10 seconds.\n\nSet the "Appearance (theme)" setting to "Default" to disable the automatic appearance toggle permanently if it keeps on failing.\n(And let me know via the feedback form that it failed so that I can fix it in the next version of the extension)`
+              `上一次切換${
+                this.isDarkTheme() ? '淺色' : '深色'
+              }主題失敗，為了避免網頁不斷重新整理，自動切換主題已暫停 10 秒。\n\n如果一直失敗，可以把「主題」設定改成「預設」來停用自動切換主題。`
             );
             this.updatingTheme = false;
             return;
@@ -211,9 +163,6 @@ export default class Theming {
   async toggleDarkTheme() {
     const wasDark = this.isDarkTheme();
     await this.updateDocumentTheme(!wasDark);
-    if (!isEmbedPageUrl()) {
-      this.updateLiveChatTheme();
-    }
 
     const isDark = this.isDarkTheme();
     if (wasDark !== isDark) return;
@@ -221,99 +170,9 @@ export default class Theming {
     this.themeToggleFailed = true;
     await storage.set('last-failed-theme-toggle', new Date().getTime());
     this.settings.setWarning(
-      `Failed to toggle the page theme to from ${
-        wasDark ? 'dark' : 'light'
-      } to ${
-        isDark ? 'dark' : 'light'
-      } mode.\n\nSet the "Appearance (theme)" setting to "Default" to disable the automatic appearance toggle permanently if it keeps on failing.\n(And let me know via the feedback form that it failed so that I can fix it in the next version of the extension)`
+      `無法把網頁主題從${wasDark ? '深色' : '淺色'}切換成${
+        isDark ? '深色' : '淺色'
+      }。\n\n如果一直失敗，可以把「主題」設定改成「預設」來停用自動切換主題。`
     );
   }
-
-  initLiveChat = () => {
-    this.initLiveChatSecondaryElem();
-    if (this.secondaryElem) return;
-
-    const observer = new MutationObserver(
-      wrapErrorHandler(
-        function initLiveChatMutation() {
-          this.initLiveChatSecondaryElem();
-          if (!this.secondaryElem) return;
-
-          observer.disconnect();
-        }.bind(this),
-        true
-      )
-    );
-    observer.observe(this.ambientlight.ytdAppElem, {
-      childList: true,
-      subtree: true,
-    });
-  };
-
-  initLiveChatSecondaryElem = () => {
-    this.secondaryElem = document.querySelector('#secondary');
-    if (!this.secondaryElem) return;
-
-    this.initLiveChatElem();
-    const observer = new MutationObserver(
-      wrapErrorHandler(this.initLiveChatElem)
-    );
-    observer.observe(this.secondaryElem, {
-      childList: true,
-    });
-  };
-
-  initLiveChatElem = () => {
-    const liveChatElem = document.querySelector('ytd-app ytd-live-chat-frame');
-    if (!liveChatElem || this.liveChatElem === liveChatElem) return;
-
-    liveChatElem.dataset.ytalElem = 'live-chat';
-    this.liveChatElem = liveChatElem;
-
-    this.initLiveChatIframe();
-    const observer = new MutationObserver(
-      wrapErrorHandler(this.initLiveChatIframe)
-    );
-    observer.observe(liveChatElem, {
-      childList: true,
-    });
-  };
-
-  initLiveChatIframe = () => {
-    const iframeElem = document.querySelector(
-      'ytd-app ytd-live-chat-frame iframe'
-    );
-    if (!iframeElem || this.liveChatIframeElem === iframeElem) return;
-
-    this.liveChatIframeElem = iframeElem;
-    this.updateLiveChatTheme();
-    on(iframeElem, 'load', () => {
-      this.ambientlight.updateLayoutPerformanceImprovements();
-      this.updateLiveChatTheme();
-    });
-  };
-
-  updateLiveChatThemeThrottle = {};
-  updateLiveChatTheme = () => {
-    if (!this.liveChatElem || !this.liveChatIframeElem) this.initLiveChatElem();
-    if (!this.liveChatElem || !this.liveChatIframeElem) return;
-    if (this.updateLiveChatThemeThrottle.timeout) return;
-
-    const update = function updateLiveChatThemeUpdate() {
-      this.updateLiveChatThemeThrottle.updateTime = performance.now();
-      if (!this.ambientlight.isOnVideoPage) return;
-
-      const toDark = this.shouldBeDarkTheme();
-      injectedScript.postMessage('set-live-chat-theme', toDark);
-    }.bind(this);
-
-    if (this.updateLiveChatThemeThrottle.updateTime > performance.now() - 500) {
-      this.updateLiveChatThemeThrottle.timeout = setTimeout(() => {
-        update();
-        this.updateLiveChatThemeThrottle.timeout = undefined;
-      }, 500);
-    } else {
-      update();
-    }
-  };
 }

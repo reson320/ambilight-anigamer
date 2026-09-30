@@ -1,0 +1,204 @@
+// Blends the 巴哈姆特動畫瘋 watch page (animeVideo.php) with the ambient light.
+//
+// The ambient light is painted behind #BH_background. The page blocks around
+// the player get a (semi) transparent background so that the light shines
+// through them, similar to what the YouTube version does with the YouTube page.
+
+@use 'mixins' as *;
+
+html {
+  &[data-ambientlight-hide-scrollbar],
+  &[data-ambientlight-immersive] {
+    scrollbar-width: none !important;
+    body::-webkit-scrollbar {
+      display: none !important;
+    }
+  }
+}
+
+.top_sky.no-animation {
+  &,
+  .sky,
+  .mainmenu {
+    transition: none !important;
+  }
+}
+
+html[data-ambientlight-enabled] {
+  // Colors used by the transparent blocks, controlled by the
+  // "Buttons & boxes background opacity" setting (--ytal-fill-opacity)
+  body {
+    --ytal-background-opacity: calc((max(var(--ytal-fill-opacity, .55), .5) * 2) - (min(var(--ytal-fill-opacity, .55), .5) * 2));
+    --ytal-background-rgb: calc(max(0, min(255, 255 * (99 - var(--ytal-fill-opacity, .55) * 200))));
+    --ytal-background: rgba(
+      var(--ytal-background-rgb),
+      var(--ytal-background-rgb),
+      var(--ytal-background-rgb),
+      var(--ytal-background-opacity)
+    );
+    --ytal-page-background: #fff;
+    background: var(--ytal-page-background) !important;
+
+    @include scrollbar-light-thin(true);
+  }
+  &[data-theme="dark"] body {
+    --ytal-background-rgb: calc(max(0, min(255, 255 * (-99 + var(--ytal-fill-opacity, .55) * 200))));
+    --ytal-page-background: #000;
+
+    @include scrollbar-dark-thin(true);
+  }
+
+  // The ambient light is prepended to #BH_background
+  #BH_background {
+    position: relative; // Fixes the ambient light height
+    z-index: 0; // Keeps the ambient light behind the page content
+    background: none !important;
+  }
+
+  // Let the ambient light also extend behind the (fixed) page header.
+  // Not in theater mode or fullscreen, where the player fills the window.
+  &:not(:has(.container-player.fullwindow)):not(:fullscreen) {
+    #BH_background {
+      padding-top: 100px;
+    }
+    .top_sky {
+      margin-bottom: -100px;
+    }
+  }
+
+  // Player
+
+  .videoframe,
+  .videoframe .video,
+  #video-container,
+  .video-js,
+  .video-js .vjs-tech,
+  .video-js .vjs-poster {
+    background-color: transparent !important;
+  }
+
+  // Zoomed in video overflow prevention
+  .video-js {
+    overflow: var(--ytal-html5-video-player-overflow, hidden);
+  }
+
+  // Blocks around the player
+
+  .anime-title,
+  section.data,
+  .subtitle,
+  .filter-nav,
+  .commendlist-wrapper .main-container_wall-post,
+  .footer {
+    background: var(--ytal-background) !important;
+    transition: background-color .15s;
+  }
+
+  .subtitle,
+  .anime-title,
+  section.data {
+    border-color: rgba(128, 128, 128, .2) !important;
+    box-shadow: none !important;
+  }
+
+  // Images opacity
+  $not-hover: ':not(:hover):not(:focus-within)';
+  .anime-title img#{$not-hover},
+  section.data img#{$not-hover},
+  .commendlist-wrapper img#{$not-hover} {
+    opacity: var(--ytal-image-opacity) !important;
+  }
+
+  // Page header
+
+  .top_sky {
+    .sky,
+    .mainmenu,
+    .mainmenu ul {
+      transition: background-color .15s, backdrop-filter .15s;
+    }
+
+    &.ytal-header-transparent {
+      .sky,
+      .mainmenu,
+      .mainmenu ul {
+        --ytal-background-rgb: 255;
+        background: rgba(255, 255, 255, var(--ytal-background-opacity, .1)) !important;
+        backdrop-filter: blur(30px);
+      }
+    }
+
+    // Transparent header while the page is scrolled to the top
+    &.at-top.ytal-header-transparent {
+      .sky,
+      .mainmenu,
+      .mainmenu ul {
+        background: transparent !important;
+        backdrop-filter: none;
+      }
+    }
+  }
+  &[data-theme="dark"] .top_sky.ytal-header-transparent {
+    .sky,
+    .mainmenu,
+    .mainmenu ul {
+      background: rgba(0, 0, 0, var(--ytal-background-opacity, .1)) !important;
+    }
+  }
+
+  // Text & icon shadows
+
+  @mixin shadow-selectors {
+    .anime-title,
+    section.data,
+    .subtitle,
+    .commend-title,
+    .commendlist-wrapper,
+    .footer {
+      @content;
+    }
+  }
+
+  &:not([data-theme="dark"]) {
+    @include shadow-selectors {
+      filter: var(--ytal-filter-shadow-inverted) !important;
+      text-shadow: var(--ytal-text-shadow-inverted) !important;
+    }
+    .ytal-header-shadow .sky,
+    .ytal-header-shadow .mainmenu {
+      filter: var(--ytal-filter-shadow-inverted) !important;
+      text-shadow: var(--ytal-text-shadow-inverted) !important;
+    }
+  }
+  &[data-theme="dark"] {
+    @include shadow-selectors {
+      filter: var(--ytal-filter-shadow) !important;
+      text-shadow: var(--ytal-text-shadow) !important;
+    }
+    .ytal-header-shadow .sky,
+    .ytal-header-shadow .mainmenu {
+      filter: var(--ytal-filter-shadow) !important;
+      text-shadow: var(--ytal-text-shadow) !important;
+    }
+  }
+
+  // Optional: hide the danmu list next to the player (the space stays reserved)
+  &[data-ambientlight-hide-danmu-list] .container-player:not(.fullwindow) .subtitle {
+    visibility: hidden;
+  }
+
+  // Optional: hide the page header until it is hovered
+  &[data-ambientlight-hide-header] .top_sky:not(:hover):not(:focus-within) {
+    opacity: 0;
+    transition: opacity .15s ease-out;
+  }
+
+  // Immersive mode: hide the page header in theater mode
+
+  &[data-ambientlight-immersive] {
+    .top_sky:not(:hover):not(:focus-within) {
+      opacity: 0;
+      transition: opacity .15s ease-out;
+    }
+  }
+}

@@ -5,11 +5,7 @@ import {
   setWarning,
   wrapErrorHandler,
 } from './libs/generic';
-import { defaultCrashOptions, storage } from './libs/storage';
-import SentryReporter, {
-  setCrashOptions,
-  setVersion,
-} from './libs/errors/sentry-reporter';
+import SentryReporter from './libs/errors/sentry-reporter';
 import { injectedScript } from './libs/messaging/injected';
 
 setErrorHandler((ex) => SentryReporter.captureException(ex));
@@ -134,22 +130,6 @@ const captureResourceLoadingException = async (url, event) => {
 
 wrapErrorHandler(async function loadContentScript() {
   const version = getVersion();
-  setVersion(version);
-
-  let crashOptions = defaultCrashOptions;
-  try {
-    crashOptions = (await storage.get('crashOptions')) || defaultCrashOptions;
-    setCrashOptions(crashOptions);
-  } catch (ex) {
-    SentryReporter.captureException(ex);
-  }
-
-  storage.addListener(function storageListener(changes) {
-    if (!changes.crashOptions?.newValue) return;
-
-    const crashOptions = changes.crashOptions.newValue;
-    setCrashOptions(crashOptions);
-  });
 
   await waitForHtmlElement();
   await waitForHeadElement();
@@ -224,7 +204,6 @@ wrapErrorHandler(async function loadContentScript() {
     const script = document.createElement('script');
     script.src = url;
     script.async = true;
-    script.setAttribute('data-crash-options', JSON.stringify(crashOptions));
     script.setAttribute('data-version', version);
     script.addEventListener(
       'error',

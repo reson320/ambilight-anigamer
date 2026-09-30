@@ -1,33 +1,28 @@
 {
-  "name": "youtube-ambientlight",
-  "version": "2.38.17",
-  "description": "This browser extension adds ambient light to the videos you view on YouTube",
+  "name": "anigamer-ambilight",
+  "version": "0.1.0",
+  "description": "Ambient light (ambilight) for the video player of 巴哈姆特動畫瘋 (ani.gamer.com.tw), ported from Ambient light for YouTube",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/WesselKroos/youtube-ambilight.git"
+    "url": "git+https://github.com/reson320/ambilight-anigamer.git"
   },
   "author": "Wessel Kroos",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/WesselKroos/youtube-ambilight/issues"
+    "url": "https://github.com/reson320/ambilight-anigamer/issues"
   },
-  "homepage": "https://github.com/WesselKroos/youtube-ambilight#readme",
+  "homepage": "https://github.com/reson320/ambilight-anigamer#readme",
   "type": "module",
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build:manifest": "node manifest-copy.js",
     "build:html": "copyfiles -u 1 src/options.html dist",
     "build:images": "copyfiles -u 2 src/images/* dist/images",
     "build:styles:content": "sass --no-source-map src/styles/content.scss dist/styles/content.css",
-    "build:styles:live-chat": "sass --no-source-map src/styles/live-chat.scss dist/styles/live-chat.css",
     "build:styles:options": "copyfiles -u 2 src/styles/options.css dist/styles",
-    "build:styles": "run-p build:styles:content build:styles:live-chat build:styles:options",
-    "build:scripts:rollup": "rollup -c",
-    "build:scripts:sourcemaps:inject": "sentry-cli sourcemaps inject ./dist/scripts --release=2.38.17",
-    "build:scripts:sourcemaps:copy": "node sourcemaps-copy.js",
-    "build:scripts:sourcemaps": "run-s build:scripts:sourcemaps:inject build:scripts:sourcemaps:copy",
-    "build:scripts": "run-s build:scripts:rollup build:scripts:sourcemaps",
-    "build": "run-s build:scripts build:styles build:manifest build:html build:images",
-    "upload-sourcemaps": "dotenvx run -f .env -f .env.local --overload -- sentry-cli sourcemaps upload ./sourcemaps --release=2.38.17"
+    "build:styles": "run-p build:styles:content build:styles:options",
+    "build:scripts": "rollup -c",
+    "build": "run-s clean build:scripts build:styles build:manifest build:html build:images"
   },
   "engines": {
     "node": "22.5.1"
@@ -39,12 +34,9 @@
     "@babel/core": "^7.21.8",
     "@babel/plugin-proposal-class-properties": "^7.18.6",
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
-    "@dotenvx/dotenvx": "^1.45.1",
     "@rollup/plugin-babel": "^6.0.4",
     "@rollup/plugin-eslint": "^9.0.5",
     "@rollup/plugin-node-resolve": "^16.0.1",
-    "@sentry/browser": "^9.27.0",
-    "@sentry/cli": "^2.46.0",
     "babel-plugin-transform-replace-expressions": "^0.2.0",
     "copyfiles": "^2.4.1",
     "eslint": "^9.28.0",

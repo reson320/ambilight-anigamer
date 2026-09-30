@@ -1438,7 +1438,11 @@ export default class ProjectorWebGL {
       : this.ambientlight.videoElem;
     if (!videoBoundingElem) return;
 
-    let videoRect = videoBoundingElem.getBoundingClientRect();
+    // 動畫瘋: the player element is larger than the visible video (letterboxing
+    // and video scaling), so use the rectangle of the visible video pixels
+    let videoRect = this.ambientlight.getVisibleVideoClientRect
+      ? this.ambientlight.getVisibleVideoClientRect()
+      : videoBoundingElem.getBoundingClientRect();
     if (!videoRect?.width || !videoRect?.height) return;
 
     const canvasRect = this.blurCanvas.getBoundingClientRect();
