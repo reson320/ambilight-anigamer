@@ -3460,7 +3460,7 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
   };
 
   shouldEnableImmersiveMode = () =>
-    this.settings.immersiveTheaterView && this.view === VIEW_THEATER;
+    !!this.settings.immersiveTheaterView && this.view === VIEW_THEATER;
 
   async updateImmersiveMode() {
     const html = document.documentElement;

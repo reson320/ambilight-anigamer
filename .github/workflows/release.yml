@@ -1,0 +1,55 @@
+name: Release
+
+# Builds the extension and publishes a GitHub Release with a zip that
+# users can unzip and load in Chrome or Edge.
+# Trigger: push a tag that matches the version in package.json, e.g. v0.1.0
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Check that the tag matches package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version v$VERSION"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - run: npm ci
+      - run: npx eslint src/scripts
+      - run: npm run build
+
+      - name: Zip the extension
+        run: |
+          ZIP="ambilight-anigamer-v${VERSION}.zip"
+          mkdir -p release
+          # The zip contains a single folder so that users unzip one folder and load it
+          cp -r dist "release/ambilight-anigamer"
+          (cd release && zip -r "../$ZIP" ambilight-anigamer)
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ZIP" \
+            --title "動畫瘋環境光 v${VERSION}" \
+            --generate-notes \
+            --notes "下載下方的 **${ZIP}**，安裝方式請看 [安裝教學](https://github.com/${GITHUB_REPOSITORY}#安裝教學)。"

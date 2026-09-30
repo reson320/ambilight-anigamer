@@ -84,14 +84,19 @@ html[data-ambientlight-enabled] {
 
   // Blocks around the player
 
-  .anime-title,
-  section.data,
+  // The danmu list keeps a (semi transparent) background to stay readable
   .subtitle,
   .filter-nav,
   .commendlist-wrapper .main-container_wall-post,
   .footer {
     background: var(--ytal-background) !important;
     transition: background-color .15s;
+  }
+
+  // The title and episode list below the player float on the ambient light
+  .anime-title,
+  section.data {
+    background: transparent !important;
   }
 
   .subtitle,

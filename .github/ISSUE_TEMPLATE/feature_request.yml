@@ -1,0 +1,12 @@
+name: 功能建議
+description: 提出想要的新功能或改善
+title: "[建議] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你想要什麼功能？
+      description: 描述想要的功能，以及它能解決什麼困擾。
+    validations:
+      required: true
