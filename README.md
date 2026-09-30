@@ -56,21 +56,20 @@
 
 ## 開發
 
-自行建置：安裝 [Node.js](https://nodejs.org/) 22 以上，執行 `npm ci` 與 `npm run build`，再用「載入未封裝項目」載入 `dist` 資料夾。
+### 自行建置
 
+1. 安裝 [Node.js](https://nodejs.org/) 22 以上
+2. 在專案資料夾執行：
+   ```bash
+   npm ci
+   npm run build
+   ```
+3. 在 `chrome://extensions` 開啟「開發人員模式」，用「載入未封裝項目」載入 `dist` 資料夾
+4. 修改程式後重新 `npm run build`，再到擴充功能頁按重新載入
 
-| 指令 | 說明 |
-| ---- | ---- |
-| `npm run build` | 清除並重新建置 `dist/` |
-| `npx eslint src/scripts` | 檢查程式碼 |
+送出修改前可以用 `npx eslint src/scripts` 檢查程式碼。
 
-### 發布新版本
-
-1. 修改 `package.json` 的 `version`（例如 `0.2.0`）並合併到 `main`
-2. 在 `main` 上建立對應的 tag 並推上去：`git tag v0.2.0 && git push origin v0.2.0`
-3. GitHub Actions 會自動 build、打包成 zip 並建立 Release
-
-主要檔案：
+### 主要檔案
 
 - `src/scripts/libs/site.js`：動畫瘋的選擇器與播放器相關工具函式，網站改版時通常只需要改這裡
 - `src/scripts/content-main.js`：等待播放器出現後初始化環境光
@@ -80,9 +79,10 @@
 
 ### 同步原專案的更新
 
-這個 repo 的 `upstream` remote 指向原專案，可以用下列指令合併原專案的更新：
+環境光引擎來自原專案，可以加入原專案的 remote 來合併更新：
 
 ```bash
+git remote add upstream https://github.com/WesselKroos/youtube-ambilight.git
 git fetch upstream
 git merge upstream/develop
 ```
