@@ -1049,6 +1049,11 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     if (document.fullscreenElement) {
       if (!document.fullscreenElement.contains(elem)) {
         elem = document.fullscreenElement;
+      } else {
+        // 動畫瘋 puts the whole page in fullscreen (body.fullscreen) and hides
+        // everything outside of the video frame, so move the ambient light
+        // into the video frame
+        elem = this.videoElem.closest(selectors.videoFrame) ?? elem;
       }
     }
     return elem;
@@ -1412,6 +1417,34 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     );
   }
 
+  // In fullscreen the video is letterboxed when the screen has another aspect
+  // ratio than the video (for example a 16:9 video on a 21:9 screen). Returns
+  // the extra [x, y] scale that stretches the ambient light over those black
+  // bars up to the edges of the screen.
+  getFullscreenBarsFillScale() {
+    if (!this.isFullscreen || !this.settings.fillFullscreenBars) return [1, 1];
+
+    const screenRect = (
+      document.fullscreenElement || document.documentElement
+    ).getBoundingClientRect();
+    const lightRect = getVideoContentClientRect(this.videoElem);
+    const lightWidth = lightRect.width * this.clippedVideoScale[0];
+    const lightHeight = lightRect.height * this.clippedVideoScale[1];
+    if (!screenRect.width || !lightWidth || !lightHeight) return [1, 1];
+
+    // The light is scaled from its center, so cover the furthest screen edge
+    const centerX = lightRect.left + lightRect.width / 2;
+    const centerY = lightRect.top + lightRect.height / 2;
+    const coverWidth =
+      2 * Math.max(centerX - screenRect.left, screenRect.right - centerX);
+    const coverHeight =
+      2 * Math.max(centerY - screenRect.top, screenRect.bottom - centerY);
+    return [
+      Math.max(1, coverWidth / lightWidth),
+      Math.max(1, coverHeight / lightHeight),
+    ];
+  }
+
   getView = () => {
     if (!this.settings.enabled) return VIEW_DISABLED;
 
@@ -1573,9 +1606,11 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     this.projectorsElem.style.top = `${unscaledTop - 1}px`;
     this.projectorsElem.style.width = `${unscaledWidth}px`;
     this.projectorsElem.style.height = `${unscaledHeight}px`;
+    const barsFillScale = this.getFullscreenBarsFillScale();
     this.projectorsElem.style.transform = `
       scale(${this.videoScale / 100})
       scale(${this.clippedVideoScale[0]}, ${this.clippedVideoScale[1]})
+      scale(${barsFillScale[0]}, ${barsFillScale[1]})
     `;
     if (this.settings.webGL) this.projector.cropped = false;
 
