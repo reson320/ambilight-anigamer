@@ -66,6 +66,16 @@ html[data-ambientlight-enabled] {
     }
   }
 
+  // Fullscreen: 動畫瘋 puts the whole page in fullscreen (body.fullscreen) and
+  // paints the player container black. The ambient light is moved into the
+  // video frame, so let it shine through the black bars around the video.
+  body.fullscreen {
+    --ytal-page-background: #000 !important;
+  }
+  body.fullscreen .BH_background .container-player {
+    background-color: transparent !important;
+  }
+
   // Player
 
   .videoframe,

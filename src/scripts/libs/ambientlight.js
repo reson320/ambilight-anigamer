@@ -1049,6 +1049,11 @@ Video ready state: ${readyStateToString(videoElem?.readyState)}`);
     if (document.fullscreenElement) {
       if (!document.fullscreenElement.contains(elem)) {
         elem = document.fullscreenElement;
+      } else if (this.settings.fullscreenBarsEnabled) {
+        // 動畫瘋 puts the whole page in fullscreen (body.fullscreen) and hides
+        // everything outside of the video frame, so move the ambient light
+        // into the video frame to show it in the black bars around the video
+        elem = this.videoElem.closest(selectors.videoFrame) ?? elem;
       }
     }
     return elem;

@@ -1106,6 +1106,7 @@ export default class Settings {
               'detectColoredHorizontalBarSizeEnabled',
               'detectVerticalBarSizeEnabled',
               'detectVideoFillScaleEnabled',
+              'fullscreenBarsEnabled',
               'directionTopEnabled',
               'directionRightEnabled',
               'directionBottomEnabled',
@@ -1123,6 +1124,13 @@ export default class Settings {
             this.menuElem
               .querySelector(getSettingQuerySelector(setting.name))
               .setAttribute('aria-checked', value);
+          }
+
+          if (setting.name === 'fullscreenBarsEnabled') {
+            if (this.ambientlight.isFullscreen) {
+              this.ambientlight.appendElemToFullscreenElem();
+            }
+            this.ambientlight.sizesChanged = true;
           }
 
           if (
