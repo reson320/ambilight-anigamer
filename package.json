@@ -1,6 +1,6 @@
 {
   "name": "anigamer-ambilight",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Ambient light (ambilight) for the video player of 巴哈姆特動畫瘋 (ani.gamer.com.tw), ported from Ambient light for YouTube",
   "repository": {
     "type": "git",
