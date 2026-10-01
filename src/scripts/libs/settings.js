@@ -1106,7 +1106,6 @@ export default class Settings {
               'detectColoredHorizontalBarSizeEnabled',
               'detectVerticalBarSizeEnabled',
               'detectVideoFillScaleEnabled',
-              'fillFullscreenBars',
               'directionTopEnabled',
               'directionRightEnabled',
               'directionBottomEnabled',
@@ -1218,7 +1217,6 @@ export default class Settings {
             [
               'videoOverlayEnabled',
               'detectVideoFillScaleEnabled',
-              'fillFullscreenBars',
               'directionTopEnabled',
               'directionRightEnabled',
               'directionBottomEnabled',

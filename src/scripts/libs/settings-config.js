@@ -302,15 +302,6 @@ const SettingsConfig = [
     new: true,
   },
   {
-    name: 'fillFullscreenBars',
-    label: '全螢幕時環境光填滿黑邊',
-    description:
-      '螢幕比例與影片不同時（例如 21:9 螢幕），讓左右（或上下）黑邊也完整亮起環境光',
-    type: 'checkbox',
-    default: true,
-    new: true,
-  },
-  {
     name: 'videoShadowSize',
     label: '陰影大小',
     type: 'list',
