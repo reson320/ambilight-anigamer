@@ -24,7 +24,7 @@ body:
     attributes:
       label: 擴充功能版本
       description: 在 chrome://extensions 的「動畫瘋環境光」下方可以看到版本號
-      placeholder: 1.1.0
+      placeholder: 1.0.0
   - type: dropdown
     id: browser
     attributes:
